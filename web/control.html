@@ -1,0 +1,1160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e0f13">
+<title>Hit Counter Control</title>
+<style>
+  :root {
+    --bg: #0e0f13;
+    --panel: #171920;
+    --panel-2: #1f222b;
+    --line: #2b2f3a;
+    --text: #e9ebf0;
+    --muted: #8a90a0;
+    --accent: #7fd4ff;
+    --danger: #ff5a5f;
+    --ok: #3ddc84;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 15px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+             max(24px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; display: grid; gap: 12px; }
+  button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+  input, select { font: inherit; color: var(--text); }
+
+  /* ---------- header ---------- */
+  header { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; min-width: 0;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); flex: none; }
+  .conn i { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 3px #ff5a5f22; }
+  .conn.on i { background: var(--ok); box-shadow: 0 0 0 3px #3ddc8422; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+
+  /* ---------- box / packs ---------- */
+  .boxbar { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
+  .boxcard .boxrow { grid-column: 1 / -1; }
+  .boxnum { font-size: 13px; color: var(--muted); }
+  .boxnum b { display: block; font-size: 26px; color: var(--text); line-height: 1.05; }
+  .packs-info { min-width: 0; }
+  .packs-info .row { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  .packs-info .row b { color: var(--text); font-size: 16px; }
+  .meter { height: 8px; background: var(--panel-2); border-radius: 99px; overflow: hidden; margin-top: 6px; }
+  .meter > div { height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width .25s; }
+  .meter.full > div { background: var(--ok); }
+  .boxnum small { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .boxrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 2px;
+            padding-top: 12px; border-top: 1px solid var(--line); }
+  .boxrow[hidden] { display: none; }
+  .boxes-info { flex: 1 1 220px; min-width: 0; }
+  .boxes-info .row { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  .boxes-info .row b { color: var(--text); font-size: 16px; }
+  .boxes-info .meter > div { background: #ffb35a; }
+  .range { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .range input {
+    width: 64px; height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel-2); font-size: 16px; text-align: center;
+  }
+  .range .btn { height: 38px; }
+  .switches { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .opacity { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .opacity input { flex: 1; min-width: 120px; accent-color: var(--accent); height: 28px; }
+  .opacity output { min-width: 3.2em; text-align: right; color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .switch { display: inline-flex; align-items: center; gap: 7px; color: var(--text); cursor: pointer; min-height: 36px; }
+  .switch input { appearance: none; -webkit-appearance: none; margin: 0; width: 40px; height: 24px; border-radius: 99px;
+                  background: var(--panel-2); border: 1px solid var(--line); position: relative; cursor: pointer;
+                  transition: background .15s; flex: none; }
+  .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+                         background: var(--muted); transition: transform .15s, background .15s; }
+  .switch input:checked { background: #23466a; border-color: #35537d; }
+  .switch input:checked::after { transform: translateX(16px); background: var(--accent); }
+  .stepper { display: flex; gap: 6px; }
+  .stepper button {
+    width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel-2); font-size: 24px; font-weight: 700; line-height: 1;
+  }
+  .stepper button:active { transform: scale(.94); }
+
+  /* ---------- card name ---------- */
+  .cardname { display: flex; gap: 8px; }
+  .cardname input {
+    flex: 1; min-width: 0; height: 46px; padding: 0 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--panel-2); font-size: 16px; /* 16px stops iOS zoom */
+  }
+  .cardname input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .cardname button {
+    flex: none; width: 46px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--muted); font-size: 20px;
+  }
+  .hint { font-size: 12px; color: var(--muted); margin: 6px 2px 0; }
+
+  /* ---------- rarity buttons ---------- */
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .grid > .hit:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  @media (min-width: 760px) {
+    .grid { grid-template-columns: repeat(5, 1fr); }
+    .grid > .hit:last-child:nth-child(odd) { grid-column: auto; }
+  }
+  .hit {
+    --c: #888;
+    position: relative; min-height: 132px; border-radius: 18px; border: 0; padding: 52px 12px 12px;
+    color: #111; text-align: left; overflow: hidden; user-select: none; -webkit-user-select: none;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--c) 100%, #fff 18%), var(--c) 55%,
+                                         color-mix(in srgb, var(--c) 78%, #000));
+    box-shadow: 0 6px 18px -8px var(--c), inset 0 1px 0 #ffffff55;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    transition: transform .08s;
+  }
+  .hit:active { transform: scale(.97); }
+  .hit .short { position: absolute; top: 12px; right: 14px; font-weight: 800; font-size: 14px; opacity: .55; letter-spacing: .04em; }
+  .hit .label { font-weight: 700; font-size: 15px; margin-bottom: 2px; padding-right: 4px; }
+  .hit .counts { display: flex; align-items: baseline; gap: 10px; }
+  .hit .boxc { font-size: 46px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .hit .sessc { font-size: 13px; font-weight: 600; opacity: .7; }
+  .hit .minus {
+    position: absolute; top: 8px; left: 8px; width: 38px; height: 38px; border-radius: 50%;
+    border: 0; background: #00000033; color: #111; font-size: 24px; font-weight: 800; line-height: 1;
+    display: grid; place-items: center;
+  }
+  .hit .minus:active { background: #00000055; }
+  .hit .minus:disabled { opacity: .3; }
+  .hit.flash::after {
+    content: ""; position: absolute; inset: 0; background: #fff; opacity: 0;
+    animation: flash .45s ease-out;
+  }
+  @keyframes flash { 0% { opacity: .75; } 100% { opacity: 0; } }
+
+  /* ---------- actions ---------- */
+  .actions { display: grid; grid-template-columns: 1.3fr 1fr 1.3fr; gap: 10px; }
+  @media (max-width: 440px) { .actions .wide { display: none; } }
+  .btn {
+    height: 50px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2);
+    font-weight: 600; padding: 0 14px;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn.primary { background: #23324a; border-color: #35537d; }
+  .btn.danger { background: #3a1c20; border-color: #6b2a31; color: #ffb3b6; }
+  .btn:disabled { opacity: .4; }
+
+  /* ---------- totals ---------- */
+  .totals { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .totals span b { color: var(--text); font-size: 15px; }
+  .totals span { background: var(--panel-2); border-radius: 99px; padding: 5px 11px; }
+  .totals .trk-h { background: none; padding: 5px 2px 5px 6px; font-weight: 600; }
+  .totals .trk { border: 1px solid var(--c); }
+  .totals .trk b { color: var(--c); }
+  .caselog { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; align-items: baseline; font-size: 14px; }
+  .caselog .cl-box { color: var(--muted); white-space: nowrap; font-size: 13px; }
+  .caselog .cl-box.now { color: var(--accent); font-weight: 700; }
+  .caselog .cl-pulls b { color: var(--c); font-size: 16px; }
+  .caselog .cl-pulls .sep { color: var(--muted); margin: 0 6px; }
+  .caselog .cl-pulls.none { color: var(--muted); }
+
+  /* ---------- test hits (scanner test mode) ---------- */
+  .testhits { border: 2px dashed #ffd23f; }
+  .testhits[hidden] { display: none; }
+  .testtag { font-size: 11px; font-weight: 800; color: #111; background: #ffd23f; border-radius: 5px; padding: 1px 6px;
+             vertical-align: 2px; }
+  /* ---------- log ---------- */
+  .section-h { display: flex; justify-content: space-between; align-items: center; margin: 0 0 8px; }
+  .section-h h2 { font-size: 14px; margin: 0; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 360px; overflow-y: auto; }
+  .log li {
+    display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center;
+    background: var(--panel-2); border-radius: 10px; padding: 6px 6px 6px 10px; min-height: 44px;
+  }
+  .log .tag { font-size: 12px; font-weight: 800; color: #111; border-radius: 6px; padding: 3px 7px; min-width: 42px; text-align: center; }
+  .log .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .log .name.none { color: var(--muted); font-style: italic; }
+  .log .meta { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .log .del {
+    width: 36px; height: 36px; border-radius: 8px; border: 0; background: transparent;
+    color: var(--muted); font-size: 18px;
+  }
+  .log .del:active { background: #ff5a5f33; color: var(--danger); }
+  .log li.old { opacity: .55; }
+  .empty { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+  .linkbtn { background: none; border: 0; color: var(--accent); font-size: 13px; padding: 4px; }
+
+  /* ---------- settings ---------- */
+  details.card > summary {
+    list-style: none; cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center;
+    min-height: 28px;
+  }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary::after { content: "▾"; color: var(--muted); transition: transform .2s; }
+  details[open].card > summary::after { transform: rotate(180deg); }
+  .form { display: grid; gap: 12px; margin-top: 12px; }
+  .field { display: grid; gap: 4px; }
+  .field > span { font-size: 12px; color: var(--muted); }
+  .field input, .field select {
+    height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel-2); font-size: 16px; width: 100%;
+  }
+  .labels { display: grid; gap: 8px; grid-template-columns: 1fr; }
+  @media (min-width: 560px) { .labels { grid-template-columns: 1fr 1fr; } }
+  .labels .field > span::before {
+    content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--c); margin-right: 6px; vertical-align: 0;
+  }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .checks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .checks label { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; min-height: 32px; }
+  .checks input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .urlbox { display: flex; gap: 8px; }
+  .urlbox input { flex: 1; min-width: 0; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+
+  /* ---------- foot pedal ---------- */
+  .pedal-badge { margin-left: auto; margin-right: 10px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .pedal-badge.on { color: var(--ok); }
+  .pedal-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+  .pedal-what { min-width: 96px; font-weight: 600; }
+  .pedal-key {
+    font: 14px ui-monospace, Consolas, monospace; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 7px; padding: 5px 9px; min-width: 64px; text-align: center;
+  }
+  .pedal-key.unset { color: var(--muted); }
+  .pedal-status { font-size: 13px; color: var(--muted); flex: 1 1 120px; }
+  .pedal-status.ok { color: var(--ok); }
+  .pedal-status.bad { color: #ffb3b6; }
+  .pedal-row .btn { height: 38px; }
+  .pedal-learn { margin: 0; padding: 10px 12px; border-radius: 10px; background: #23324a; color: var(--text);
+                 font-weight: 600; animation: listen 1.2s ease-in-out infinite; }
+  .pedal-learn[hidden] { display: none; }
+  @keyframes listen { 50% { background: #2d4366; } }
+  .meter.pedal-tap > div { box-shadow: 0 0 0 3px #7fd4ff66; }
+
+  /* ---------- toast ---------- */
+  .toast {
+    position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
+    background: #2a2d37; border: 1px solid var(--line); color: var(--text); padding: 10px 16px; border-radius: 12px;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: calc(100vw - 32px);
+    font-size: 14px; z-index: 10; box-shadow: 0 8px 24px #0008;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.err { border-color: #6b2a31; color: #ffb3b6; }
+
+  .kbd { font-size: 12px; color: var(--muted); }
+  .kbd kbd { font: 11px ui-monospace, Consolas, monospace; background: var(--panel-2); border: 1px solid var(--line);
+             border-radius: 4px; padding: 1px 5px; }
+  @media (hover: none) { .kbd { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1 id="title">Hit Counter</h1>
+    <span class="conn" id="conn"><i></i><span id="connText">Connecting…</span></span>
+  </header>
+
+  <section class="card boxbar boxcard" aria-label="Current box">
+    <div class="boxnum"><span id="boxLabel">Box</span><b id="boxNum">1</b><small id="boxOf"></small></div>
+    <div class="packs-info">
+      <div class="row"><span>Packs opened</span><span><b id="packsOpened">0</b> / <span id="packsPerBox">24</span></span></div>
+      <div class="meter" id="meter"><div></div></div>
+    </div>
+    <div class="stepper">
+      <button id="packMinus" aria-label="One pack fewer">−</button>
+      <button id="packPlus" aria-label="One more pack">+</button>
+    </div>
+    <div class="boxrow" id="boxesRow" hidden>
+      <div class="boxes-info">
+        <div class="row"><span>Boxes finished</span><span><b id="boxesDone">0</b> / <span id="boxesTotal">0</span></span></div>
+        <div class="meter" id="boxMeter"><div></div></div>
+      </div>
+    </div>
+    <div class="boxrow">
+      <form class="range" id="rangeForm" autocomplete="off">
+        <label for="spanInput">Boxes at a time</label>
+        <input id="spanInput" type="number" min="1" max="100" step="1" inputmode="numeric" placeholder="4"
+               title="How many boxes you open together, e.g. 4 for boxes 1-4, then 5-8">
+        <label for="totalInput">Total boxes</label>
+        <input id="totalInput" type="number" min="1" step="1" inputmode="numeric" placeholder="12"
+               title="Total boxes in this break, e.g. 12 for a case. Leave empty for no total.">
+        <button class="btn" type="submit">Set</button>
+      </form>
+      <div class="switches">
+        <span>On stream:</span>
+        <label class="switch"><input type="checkbox" id="showPacks" checked> Packs</label>
+        <label class="switch"><input type="checkbox" id="showBoxes" checked> Boxes</label>
+        <label class="switch"><input type="checkbox" id="showLeft" checked> Packs left</label>
+        <label class="switch"><input type="checkbox" id="showTracker" checked> Case tracker</label>
+        <label class="switch"><input type="checkbox" id="showCaseLog" checked> Case log</label>
+        <label class="switch" title="The case's Starlight Overframe, Starlight and Overframe pulls by name"><input type="checkbox" id="showShowcase"> Biggest hits</label>
+      </div>
+      <label class="opacity" title="How solid the overlay's panels are: 0% = just the text over your stream, 100% = solid">
+        <span>Panel background</span>
+        <input type="range" id="panelOpacity" min="0" max="100" step="5" value="85">
+        <output id="panelOpacityVal">85%</output>
+      </label>
+    </div>
+  </section>
+
+  <section>
+    <div class="cardname">
+      <input id="cardInput" type="text" maxlength="80" placeholder="Card name (optional)" autocomplete="off"
+             autocapitalize="words" spellcheck="false" list="recentCards" enterkeyhint="done">
+      <button id="cardClear" aria-label="Clear card name" title="Clear">×</button>
+    </div>
+    <datalist id="recentCards"></datalist>
+    <p class="hint">Type a name first, then tap the rarity. It clears after the hit is logged.</p>
+  </section>
+
+  <section class="grid" id="grid" aria-label="Rarities"></section>
+
+  <section class="actions">
+    <button class="btn" id="undoBtn">↶ Undo<span class="wide"> last hit</span></button>
+    <button class="btn" id="prevBoxBtn">← Prev<span class="wide"> box</span></button>
+    <button class="btn primary" id="nextBoxBtn">Next box →</button>
+  </section>
+
+  <section class="totals" id="totals"></section>
+
+  <section class="card" id="caseLogCard">
+    <div class="section-h"><h2>Chase pulls by boxes</h2></div>
+    <div class="caselog" id="caseLog"></div>
+  </section>
+
+  <section class="card testhits" id="testCard" hidden>
+    <div class="section-h">
+      <h2>Test hits <span class="testtag">TEST</span></h2>
+      <button class="linkbtn" id="testClear">Clear test hits</button>
+    </div>
+    <p class="hint" style="margin:0 0 8px">From the card scanner's test mode: shown here (and in the overlay preview below) to
+      check the rarity and name it logs, but never counted and never shown on the stream overlay.</p>
+    <ul class="log" id="testLog"></ul>
+  </section>
+
+  <section class="card">
+    <div class="section-h">
+      <h2>Hit log</h2>
+      <button class="linkbtn" id="logScope">Show all boxes</button>
+    </div>
+    <ul class="log" id="log"></ul>
+  </section>
+
+  <details class="card" id="pedalCard">
+    <summary>Foot pedal <span class="pedal-badge" id="pedalBadge"></span></summary>
+    <div class="form">
+      <p class="hint" id="pedalUnavailable" style="margin:0" hidden>The foot pedal works when the counter runs on Windows.</p>
+      <div class="pedal-row">
+        <span class="pedal-what">+1 pack</span>
+        <kbd class="pedal-key unset" id="pedalKey-plus">not set</kbd>
+        <span class="pedal-status" id="pedalStatus-plus"></span>
+        <button class="btn" type="button" data-learn="plus">Learn</button>
+        <button class="btn" type="button" data-clear="plus">Clear</button>
+      </div>
+      <div class="pedal-row">
+        <span class="pedal-what">−1 pack</span>
+        <kbd class="pedal-key unset" id="pedalKey-minus">not set</kbd>
+        <span class="pedal-status" id="pedalStatus-minus">optional 2nd pedal, for mistakes</span>
+        <button class="btn" type="button" data-learn="minus">Learn</button>
+        <button class="btn" type="button" data-clear="minus">Clear</button>
+      </div>
+      <p class="pedal-learn" id="pedalLearn" hidden>Press your pedal now… (Esc to cancel)</p>
+      <p class="hint" style="margin:0">In your pedal's own app, set it to send a key nobody types: <b>F13</b>–<b>F24</b>
+        is ideal, or Ctrl+Alt+a letter. Then click <b>Learn</b> and press the pedal. It counts packs whichever window
+        is in front, OBS included. At the end of the boxes on the table (e.g. 96/96) the next press moves on to the
+        next boxes, just like <b>+</b>.</p>
+    </div>
+  </details>
+
+  <details class="card" id="settings">
+    <summary>Settings</summary>
+    <form class="form" id="settingsForm" autocomplete="off">
+      <label class="field"><span>Stream title</span><input id="setTitle" maxlength="80"></label>
+      <label class="field"><span>Packs per box</span><input id="setPpb" type="number" min="1" step="1" inputmode="numeric"></label>
+      <div class="labels" id="labelFields"></div>
+      <button class="btn primary" type="submit">Save settings</button>
+    </form>
+  </details>
+
+  <details class="card" id="overlayCfg">
+    <summary>OBS overlay link</summary>
+    <div class="form">
+      <div class="two">
+        <label class="field"><span>Layout</span>
+          <select id="ovLayout"><option value="row">Row</option><option value="column">Column</option></select></label>
+        <label class="field"><span>Counts</span>
+          <select id="ovShow"><option value="box">Current box</option><option value="session">Session</option><option value="both">Both</option></select></label>
+        <label class="field"><span>Scale</span><input id="ovScale" type="number" min="0.25" step="0.25" value="1" inputmode="decimal"></label>
+        <label class="field"><span>Background</span>
+          <select id="ovBg"><option value="none">Transparent</option><option value="dark">Dark</option></select></label>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="ovTitle" checked> Title</label>
+        <label><input type="checkbox" id="ovAlerts" checked> Hit alerts</label>
+      </div>
+      <div><div class="field"><span>Hide rarities</span></div><div class="checks" id="ovHide"></div></div>
+      <div class="urlbox">
+        <input id="ovUrl" class="field" readonly style="height:42px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2)">
+        <button class="btn" id="ovCopy" type="button">Copy</button>
+      </div>
+      <p class="hint" style="margin:0">Add this as a Browser Source in OBS. Show or hide the packs and boxes
+        counters live with the "On stream" switches at the top: no OBS change needed.</p>
+      <div class="field"><span>Live preview (checkerboard = transparent)</span></div>
+      <iframe id="ovPreview" title="Overlay preview" style="width:100%;height:340px;border:1px solid var(--line);border-radius:10px;background:repeating-conic-gradient(#2a2f3a 0% 25%, #1c2029 0% 50%) 0 0/24px 24px"></iframe>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary>Danger zone</summary>
+    <div class="form">
+      <button class="btn danger" id="resetBtn">Reset session (clear all hits)</button>
+      <p class="hint" style="margin:0">Clears the log and goes back to box 1. Title, labels, boxes per table and the total are kept.</p>
+    </div>
+  </details>
+
+  <p class="kbd">Keys: <kbd>1</kbd>–<kbd>5</kbd> hit · <kbd>Shift</kbd>+<kbd>1</kbd>–<kbd>5</kbd> remove ·
+    <kbd>Z</kbd> undo · <kbd>+</kbd>/<kbd>−</kbd> packs · <kbd>/</kbd> card name</p>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+
+  let state = null;
+  let logAll = false;
+  let gridKey = "";        // rarity ids+colors the grid was built for
+  let labelsKey = "";
+  let es = null;
+
+  // ---------- networking ----------
+  async function post(path, body) {
+    try {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+      applyState(data);
+      return data;
+    } catch (e) {
+      toast(e.message === "Failed to fetch" ? "Server unreachable" : e.message, true);
+      return null;
+    }
+  }
+
+  async function loadState() {
+    try {
+      const res = await fetch("/api/state", { cache: "no-store" });
+      if (res.ok) applyState(await res.json());
+    } catch (_) { /* SSE will retry */ }
+  }
+
+  function connect() {
+    if (es) es.close();
+    es = new EventSource("/api/events");
+    es.addEventListener("open", () => setConn(true));
+    es.addEventListener("error", () => setConn(false));
+    es.addEventListener("state", (ev) => {
+      setConn(true);
+      try { applyState(JSON.parse(ev.data)); } catch (_) {}
+    });
+    es.addEventListener("hit", (ev) => {
+      try { flash(JSON.parse(ev.data).rarity.id); } catch (_) {}
+    });
+    es.addEventListener("pedal", (ev) => {
+      try { onPedal(JSON.parse(ev.data)); } catch (_) {}
+    });
+  }
+
+  function setConn(on) {
+    $("conn").classList.toggle("on", on);
+    $("connText").textContent = on ? "Live" : "Offline";
+  }
+
+  // ---------- rendering ----------
+  function applyState(s) {
+    if (!s || !Array.isArray(s.rarities)) return;
+    // Ignore stale snapshots (e.g. a POST response arriving after a newer SSE event).
+    if (state && typeof s.updatedAt === "number" && s.updatedAt < state.updatedAt) return;
+    state = s;
+    render();
+  }
+
+  function render() {
+    const s = state;
+    $("title").textContent = s.title || "Hit Counter";
+    document.title = (s.title ? s.title + " · " : "") + "Control";
+
+    // box / packs
+    // boxes on the table (first..last) out of the break's total
+    const b = s.box;
+    const first = b.number, last = Math.max(b.number, b.to || b.number), of = b.of == null ? null : b.of;
+    const multi = last > first;
+    $("boxLabel").textContent = multi ? "Boxes" : "Box";
+    $("boxNum").textContent = multi ? first + "–" + last : first;
+    $("boxOf").textContent = of ? "of " + of : "";
+
+    // packs count across every box on the table (e.g. 4 x 24 = 96)
+    const packsTotal = Math.max(1, b.packsTotal || b.packsPerBox);
+    $("packsOpened").textContent = b.packsOpened;
+    $("packsPerBox").textContent = packsTotal;
+    const part = Math.min(1, b.packsOpened / packsTotal);
+    $("meter").firstElementChild.style.width = (part * 100) + "%";
+    $("meter").classList.toggle("full", part >= 1);
+    $("packMinus").disabled = b.packsOpened <= 0;
+    // Full table: + moves on to the next boxes (nothing next on the last boxes of the break).
+    const full = b.packsOpened >= packsTotal;
+    const lastBoxes = of != null && last >= of;
+    $("packPlus").disabled = full && lastBoxes;
+    $("packPlus").title = full ? (lastBoxes ? "All boxes opened" : "Start the next boxes at 0 packs") : "One more pack";
+
+    $("boxesRow").hidden = !of;
+    if (of) {
+      const size = last - first + 1;
+      $("boxesDone").textContent = Math.min(of, first - 1 + (part >= 1 ? size : 0));
+      $("boxesTotal").textContent = of;
+      const frac = Math.min(1, (first - 1 + size * part) / of);
+      $("boxMeter").firstElementChild.style.width = (frac * 100) + "%";
+      $("boxMeter").classList.toggle("full", frac >= 1);
+    }
+    if (document.activeElement !== $("spanInput")) $("spanInput").value = b.span;
+    if (document.activeElement !== $("totalInput")) $("totalInput").value = of || "";
+    $("prevBoxBtn").disabled = first <= 1;
+    $("nextBoxBtn").textContent = multi ? "Next boxes →" : "Next box →";
+    const display = s.display || {};
+    $("showPacks").checked = display.packs !== false;
+    $("showBoxes").checked = display.boxes !== false;
+    $("showLeft").checked = display.packsLeft !== false;
+    $("showTracker").checked = display.tracker !== false;
+    $("showCaseLog").checked = display.caseLog !== false;
+    $("showShowcase").checked = display.showcase === true;
+    if (!opacityDragging && Number.isFinite(s.panelOpacity)) {
+      $("panelOpacity").value = s.panelOpacity;
+      $("panelOpacityVal").textContent = s.panelOpacity + "%";
+    }
+
+    renderPedal();
+    renderGrid();
+    renderTotals();
+    renderLog();
+    renderSettings();
+    renderOverlayHide();
+    $("undoBtn").disabled = !s.log.length;
+  }
+
+  function renderGrid() {
+    const grid = $("grid");
+    const key = state.rarities.map((r) => r.id + r.color).join("|");
+    if (key !== gridKey) {
+      gridKey = key;
+      grid.textContent = "";
+      state.rarities.forEach((r, i) => {
+        const b = document.createElement("button");
+        b.className = "hit";
+        b.dataset.id = r.id;
+        b.style.setProperty("--c", r.color);
+        b.title = "Log a " + r.label + (i < 9 ? "  (key " + (i + 1) + ")" : "");
+        b.innerHTML =
+          '<span class="minus" role="button" tabindex="0" aria-label="Remove one">−</span>' +
+          '<span class="short"></span><span class="label"></span>' +
+          '<span class="counts"><span class="boxc">0</span><span class="sessc"></span></span>';
+        b.querySelector(".short").textContent = r.short;
+        const minus = b.querySelector(".minus");
+        minus.addEventListener("click", (ev) => { ev.stopPropagation(); removeOne(r.id); });
+        minus.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ev.stopPropagation(); removeOne(r.id); }
+        });
+        b.addEventListener("click", () => hit(r.id));
+        grid.appendChild(b);
+      });
+    }
+    state.rarities.forEach((r) => {
+      const b = grid.querySelector('.hit[data-id="' + r.id + '"]');
+      if (!b) return;
+      const boxN = state.box.counts[r.id] || 0;
+      const sessN = state.session.counts[r.id] || 0;
+      b.querySelector(".label").textContent = r.label;
+      b.querySelector(".boxc").textContent = boxN;
+      b.querySelector(".sessc").textContent = "session " + sessN;
+      b.setAttribute("aria-label", r.label + ": " + boxN + " this box, " + sessN + " this session. Tap to add.");
+      const minus = b.querySelector(".minus");
+      minus.toggleAttribute("aria-disabled", boxN === 0);
+      minus.style.opacity = boxN === 0 ? ".3" : "";
+    });
+  }
+
+  function renderTotals() {
+    const t = $("totals");
+    t.textContent = "";
+    const add = (label, val) => {
+      const sp = document.createElement("span");
+      sp.append(label + " ");
+      const b = document.createElement("b");
+      b.textContent = val;
+      sp.append(b);
+      t.append(sp);
+    };
+    add("This box", state.box.total);
+    add("Session", state.session.total);
+    add("Boxes", state.session.boxes);
+
+    // Running case totals for the rarities that come in an unknown number per case.
+    const head = document.createElement("span");
+    head.className = "trk-h";
+    head.textContent = state.box.of != null ? "Case total:" : "Total so far:";
+    t.append(head);
+    for (const id of ["overframe", "starlight", "starlight_overframe"]) {
+      const r = rarityById(id);
+      if (!r) continue;
+      add(r.label, state.session.counts[id] || 0);
+      t.lastElementChild.className = "trk";
+      t.lastElementChild.style.setProperty("--c", r.color);
+    }
+    renderCaseLog();
+  }
+
+  // Chase pulls (OF / Starlight / Starlight OF) grouped by the boxes that were on the table.
+  function renderCaseLog() {
+    const TRACKED = ["overframe", "starlight", "starlight_overframe"];
+    const groups = new Map();
+    const group = (a, z) => {
+      const k = a + "-" + z;
+      if (!groups.has(k)) groups.set(k, { a, z, counts: {} });
+      return groups.get(k);
+    };
+    for (const e of state.log) {
+      const g = group(e.box, Math.max(e.box, e.boxTo || e.box));
+      if (TRACKED.includes(e.rarity)) g.counts[e.rarity] = (g.counts[e.rarity] || 0) + 1;
+    }
+    const curA = state.box.number, curZ = Math.max(curA, state.box.to || curA);
+    group(curA, curZ);
+    const box = $("caseLog");
+    box.textContent = "";
+    for (const g of [...groups.values()].sort((x, y) => x.a - y.a || x.z - y.z)) {
+      const now = g.a === curA && g.z === curZ;
+      const lab = document.createElement("span");
+      lab.className = "cl-box" + (now ? " now" : "");
+      lab.textContent = (g.z > g.a ? "Boxes " + g.a + "–" + g.z : "Box " + g.a) + (now ? " (now)" : "");
+      const pulls = document.createElement("span");
+      pulls.className = "cl-pulls";
+      for (const id of TRACKED) {
+        const n = g.counts[id] || 0;
+        const r = rarityById(id);
+        if (!n || !r) continue;
+        if (pulls.childNodes.length) {
+          const sep = document.createElement("span");
+          sep.className = "sep";
+          sep.textContent = "·";
+          pulls.append(sep);
+        }
+        const item = document.createElement("span");
+        item.style.setProperty("--c", r.color);
+        const b = document.createElement("b");
+        b.textContent = n;
+        item.append(b, " " + r.label);
+        pulls.append(item);
+      }
+      if (!pulls.childNodes.length) {
+        pulls.classList.add("none");
+        pulls.textContent = now ? "nothing yet" : "none";
+      }
+      box.append(lab, pulls);
+    }
+  }
+
+  function rarityById(id) { return state.rarities.find((r) => r.id === id); }
+
+  function fmtTime(ts) {
+    const d = new Date(ts * 1000);
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  function logItem(e, old) {
+    const r = rarityById(e.rarity) || { short: e.rarity, color: "#888", label: e.rarity };
+    const li = document.createElement("li");
+    if (old) li.className = "old";
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.style.background = r.color;
+    tag.textContent = r.short;
+    tag.title = r.label;
+    const name = document.createElement("span");
+    name.className = "name" + (e.card ? "" : " none");
+    name.textContent = e.card || r.label;
+    name.title = "Click to change the card name";
+    name.style.cursor = "pointer";
+    name.addEventListener("click", () => {
+      const next = prompt("Card name for this " + r.label + " (empty = no name)", e.card || "");
+      if (next !== null && next.trim() !== (e.card || "")) post("/api/rename", { id: e.id, card: next.trim() || null });
+    });
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    const boxes = e.boxTo > e.box ? "Boxes " + e.box + "–" + e.boxTo : "Box " + e.box;
+    meta.textContent = (logAll ? boxes + " · " : "") + (e.auto ? "camera · " : "") + fmtTime(e.ts);
+    if (e.auto) meta.title = "Logged automatically by the card scanner";
+    const del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "✕";
+    del.title = "Delete this entry";
+    del.setAttribute("aria-label", "Delete " + (e.card || r.label));
+    del.addEventListener("click", () => post("/api/delete", { id: e.id }));
+    li.append(tag, name, meta, del);
+    return li;
+  }
+
+  function renderTestLog() {
+    const tests = (state.testLog || []).slice(-50).reverse();
+    $("testCard").hidden = !tests.length;
+    const ul = $("testLog");
+    ul.textContent = "";
+    for (const e of tests) ul.append(logItem(e, false));
+  }
+
+  function renderLog() {
+    renderTestLog();
+    const ul = $("log");
+    ul.textContent = "";
+    const entries = state.log
+      .filter((e) => logAll || e.box === state.box.number)
+      .slice(-200)
+      .reverse();
+    $("logScope").textContent = logAll ? "Current box only" : "Show all boxes";
+    if (!entries.length) {
+      const li = document.createElement("div");
+      li.className = "empty";
+      li.textContent = logAll ? "No hits yet this session." : "No hits in this box yet.";
+      ul.append(li);
+    }
+    for (const e of entries) ul.append(logItem(e, e.box !== state.box.number));
+
+    // recent card names for autocomplete
+    const dl = $("recentCards");
+    const seen = new Set();
+    dl.textContent = "";
+    for (let i = state.log.length - 1; i >= 0 && seen.size < 50; i--) {
+      const c = state.log[i].card;
+      if (c && !seen.has(c)) {
+        seen.add(c);
+        const o = document.createElement("option");
+        o.value = c;
+        dl.append(o);
+      }
+    }
+  }
+
+  // Settings fields are only refreshed when the user isn't editing them.
+  let settingsDirty = false;
+  function renderSettings() {
+    const lf = $("labelFields");
+    const key = state.rarities.map((r) => r.id).join("|");
+    if (key !== labelsKey) {
+      labelsKey = key;
+      lf.textContent = "";
+      for (const r of state.rarities) {
+        const lab = document.createElement("label");
+        lab.className = "field";
+        lab.style.setProperty("--c", r.color);
+        const sp = document.createElement("span");
+        sp.textContent = r.short + " label";
+        const inp = document.createElement("input");
+        inp.maxLength = 40;
+        inp.dataset.id = r.id;
+        lab.append(sp, inp);
+        lf.append(lab);
+      }
+    }
+    if (settingsDirty) return;
+    $("setTitle").value = state.title || "";
+    $("setPpb").value = state.box.packsPerBox;
+    for (const r of state.rarities) {
+      const inp = lf.querySelector('input[data-id="' + r.id + '"]');
+      if (inp) inp.value = r.label;
+    }
+  }
+
+  // ---------- foot pedal ----------
+  const PEDAL_STATUS = {
+    active: ["Active", "ok"],
+    paused: ["Paused while learning", ""],
+    busy: ["Another app already uses this key — pick a different one", "bad"],
+    invalid: ["This key can't be used", "bad"],
+    unavailable: ["Needs the counter running on Windows", "bad"],
+  };
+  let learning = null;   // "plus" | "minus" while waiting for the pedal
+  let learnTimer = 0;
+
+  function renderPedal() {
+    const p = state.pedal || {};
+    $("pedalUnavailable").hidden = p.available !== false;
+    for (const a of ["plus", "minus"]) {
+      const key = p[a];
+      const kbd = $("pedalKey-" + a);
+      kbd.textContent = key || "not set";
+      kbd.classList.toggle("unset", !key);
+      const st = (p.status || {})[a] || "off";
+      const [text, cls] = PEDAL_STATUS[st] || [st, "bad"];
+      const el = $("pedalStatus-" + a);
+      el.textContent = key ? text : (a === "minus" ? "optional 2nd pedal, for mistakes" : "");
+      el.className = "pedal-status " + (key ? cls : "");
+      document.querySelector('[data-clear="' + a + '"]').disabled = !key;
+    }
+    const on = p.plus && (p.status || {}).plus === "active";
+    $("pedalBadge").textContent = p.plus ? p.plus + (on ? " · on" : "") : "off";
+    $("pedalBadge").classList.toggle("on", !!on);
+  }
+
+  function startLearn(action) {
+    learning = action;
+    $("pedalLearn").hidden = false;
+    $("pedalLearn").textContent = "Press your " + (action === "plus" ? "+1 pack" : "−1 pack") +
+      " pedal now… (Esc to cancel)";
+    post("/api/pedal", { paused: true });  // let the key reach this page instead of the hotkey
+    clearTimeout(learnTimer);
+    learnTimer = setTimeout(() => { if (learning) { endLearn(); toast("No pedal press heard", true); } }, 25000);
+  }
+
+  function endLearn() {
+    learning = null;
+    clearTimeout(learnTimer);
+    $("pedalLearn").hidden = true;
+    post("/api/pedal", { paused: false });
+  }
+
+  // browser KeyboardEvent.code -> the server's key names
+  const PEDAL_CODES = {
+    Pause: "Pause", ScrollLock: "ScrollLock", Insert: "Insert", Home: "Home", End: "End",
+    PageUp: "PageUp", PageDown: "PageDown", NumpadAdd: "NumpadAdd", NumpadSubtract: "NumpadSubtract",
+    NumpadMultiply: "NumpadMultiply", NumpadDivide: "NumpadDivide",
+    MediaPlayPause: "MediaPlayPause", MediaTrackNext: "MediaNext", MediaTrackPrevious: "MediaPrev",
+  };
+  function pedalKeyName(code) {
+    let m;
+    if ((m = /^F(\d{1,2})$/.exec(code))) return "F" + m[1];
+    if ((m = /^Key([A-Z])$/.exec(code))) return m[1];
+    if ((m = /^Digit(\d)$/.exec(code))) return m[1];
+    if ((m = /^Numpad(\d)$/.exec(code))) return "Numpad" + m[1];
+    return PEDAL_CODES[code] || null;
+  }
+
+  // Runs before the page's own shortcuts (capture on window) so a learned key never also counts.
+  window.addEventListener("keydown", (ev) => {
+    if (!learning) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    if (ev.key === "Escape") { endLearn(); toast("Pedal learning cancelled"); return; }
+    if (["Control", "Alt", "Shift", "Meta"].includes(ev.key)) return;  // wait for the real key
+    const name = pedalKeyName(ev.code);
+    if (!name) { toast("That key (" + (ev.code || ev.key) + ") can't be used — set the pedal to F13–F24", true); return; }
+    const combo = [ev.ctrlKey && "Ctrl", ev.altKey && "Alt", ev.shiftKey && "Shift", ev.metaKey && "Win"]
+      .filter(Boolean).concat(name).join("+");
+    const action = learning;
+    learning = null;
+    clearTimeout(learnTimer);
+    $("pedalLearn").hidden = true;
+    post("/api/settings", { pedal: { [action]: combo } }).then((ok) => {
+      post("/api/pedal", { paused: false });
+      if (ok) toast("Pedal set: " + ok.pedal[action] + " → " + (action === "plus" ? "+1 pack" : "−1 pack"));
+    });
+  }, true);
+
+  function onPedal(d) {
+    const meter = $("meter");
+    meter.classList.remove("pedal-tap");
+    void meter.offsetWidth;
+    meter.classList.add("pedal-tap");
+    setTimeout(() => meter.classList.remove("pedal-tap"), 400);
+    if (d.moved) toast("Pedal: boxes done · now on " + boxesText(state.box.number, state.box.to, state.box.of));
+    else toast("Pedal: " + (d.delta > 0 ? "+1" : "−1") + " pack (" + state.box.packsOpened + "/" + state.box.packsTotal + ")");
+  }
+
+  // ---------- actions ----------
+  function hit(id) {
+    const input = $("cardInput");
+    const card = input.value.trim();
+    const body = { rarity: id };
+    if (card) body.card = card;
+    flash(id);
+    if (navigator.vibrate) navigator.vibrate(15);
+    const label = (rarityById(id) || {}).label || id;
+    post("/api/hit", body).then((ok) => {
+      if (!ok) { toast("NOT saved: " + label + " — tap again", true); return; }
+      if (card && input.value.trim() === card) input.value = "";
+      toast("+1 " + label + (card ? " — " + card : ""));
+    });
+  }
+
+  function removeOne(id) {
+    if (!state || !(state.box.counts[id] > 0)) {
+      toast("No " + ((rarityById(id) || {}).label || id) + " in this box to remove", true);
+      return;
+    }
+    if (navigator.vibrate) navigator.vibrate([10, 40, 10]);
+    post("/api/remove", { rarity: id }).then((ok) => {
+      if (ok) toast("−1 " + (rarityById(id) || {}).label);
+    });
+  }
+
+  function undo() {
+    if (!state || !state.log.length) return;
+    const last = state.log[state.log.length - 1];
+    const r = rarityById(last.rarity) || { label: last.rarity };
+    post("/api/undo", {}).then((ok) => {
+      if (ok) toast("Undid " + r.label + (last.card ? " — " + last.card : ""));
+    });
+  }
+
+  function packs(delta) {
+    const before = state && state.box.number;
+    post("/api/packs", { delta }).then((ok) => {
+      if (ok && ok.box.number !== before) toast("Boxes done · now on " + boxesText(ok.box.number, ok.box.to, ok.box.of));
+    });
+  }
+
+  // "Box 3" or "boxes 1–4" (+ " of 12")
+  function boxesText(first, last, of) {
+    const t = last > first ? "boxes " + first + "–" + last : "box " + first;
+    return t + (of ? " of " + of : "");
+  }
+
+  function nextBox() {
+    if (!state) return;
+    const b = state.box;
+    const nf = b.to + 1;
+    let nl = nf + b.span - 1;
+    if (b.of != null && nf <= b.of) nl = Math.min(nl, b.of);
+    const unfinished = b.packsOpened < b.packsTotal;
+    let msg = (unfinished ? "Only " + b.packsOpened + "/" + b.packsTotal + " packs opened. " : "") +
+              "Move on to " + boxesText(nf, nl) + (unfinished ? " anyway?" : "?");
+    if (b.of != null && nf > b.of) {
+      msg += "\n\nThat's past the " + b.of + " boxes in this break, so the total will go up to " + nl + ".";
+    }
+    if (!confirm(msg)) return;
+    post("/api/next-box", {}).then((ok) => {
+      if (ok) toast("Now on " + boxesText(ok.box.number, ok.box.to, ok.box.of));
+    });
+  }
+
+  function prevBox() {
+    if (!state || state.box.number <= 1) return;
+    const b = state.box;
+    const pf = Math.max(1, b.number - b.span);
+    const pl = Math.min(pf + b.span - 1, b.of || Infinity);
+    if (!confirm("Go back to " + boxesText(pf, pl) + "? Hits stay logged under the boxes they were pulled in.")) return;
+    post("/api/box", { delta: -1 }).then((ok) => {
+      if (ok) toast("Back to " + boxesText(ok.box.number, ok.box.to, ok.box.of));
+    });
+  }
+
+  // "Boxes at a time" 4 + "Total boxes" 12 -> boxes 1-4 of 12, then 5-8, then 9-12.
+  function setBoxes(ev) {
+    ev.preventDefault();
+    if (!state) return;
+    const span = parseInt($("spanInput").value, 10);
+    if (!(span >= 1 && span <= 100)) { toast("Boxes at a time must be 1 to 100", true); return; }
+    const totalRaw = $("totalInput").value.trim();
+    const total = totalRaw ? parseInt(totalRaw, 10) : null;
+    if (totalRaw && !(total >= 1)) { toast("Total boxes must be 1 or more", true); return; }
+    // Line the table up on whole groups: with 4 at a time, box 1-4, 5-8, 9-12...
+    const first = Math.floor((state.box.number - 1) / span) * span + 1;
+    if (total !== null && total < first) { toast("Total boxes can't be less than box " + first, true); return; }
+    const body = { set: first, span, of: total };
+    $("spanInput").blur();
+    $("totalInput").blur();
+    post("/api/box", body).then((ok) => {
+      if (ok) toast("On the table: " + boxesText(ok.box.number, ok.box.to, ok.box.of));
+    });
+  }
+
+  function setDisplay(key, on) {
+    post("/api/settings", { display: { [key]: on } }).then((ok) => {
+      const name = { packs: "Packs", boxes: "Boxes", packsLeft: "Packs left", tracker: "Case tracker", caseLog: "Case log", showcase: "Biggest hits" }[key] || key;
+      if (ok) toast(name + (on ? " shown" : " hidden") + " on stream");
+    });
+  }
+
+  // Panel background slider: updates the overlay live while dragging (a few times a second).
+  let opacityDragging = false, opacityTimer = 0, opacitySent = null;
+  function sendOpacity(final) {
+    const v = Number($("panelOpacity").value);
+    $("panelOpacityVal").textContent = v + "%";
+    clearTimeout(opacityTimer);
+    const go = () => { if (v !== opacitySent) { opacitySent = v; post("/api/settings", { panelOpacity: v }); } };
+    if (final) go(); else opacityTimer = setTimeout(go, 120);
+  }
+
+  function reset() {
+    if (!confirm("Reset the whole session? This deletes every logged hit.")) return;
+    if (!confirm("Really reset? This can't be undone.")) return;
+    post("/api/reset", {}).then((ok) => { if (ok) toast("Session reset"); });
+  }
+
+  function flash(id) {
+    const b = $("grid").querySelector('.hit[data-id="' + id + '"]');
+    if (!b) return;
+    b.classList.remove("flash");
+    void b.offsetWidth;
+    b.classList.add("flash");
+  }
+
+  let toastTimer = 0;
+  function toast(msg, err) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.toggle("err", !!err);
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), err ? 3200 : 1600);
+  }
+
+  // ---------- overlay link builder ----------
+  function renderOverlayHide() {
+    const box = $("ovHide");
+    if (box.childElementCount === state.rarities.length) return;
+    box.textContent = "";
+    for (const r of state.rarities) {
+      const lab = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.value = r.id;
+      cb.addEventListener("change", buildOverlayUrl);
+      lab.append(cb, " " + r.short);
+      box.append(lab);
+    }
+    buildOverlayUrl();
+  }
+
+  function buildOverlayUrl() {
+    const p = new URLSearchParams();
+    const layout = $("ovLayout").value, show = $("ovShow").value, bg = $("ovBg").value;
+    const scale = parseFloat($("ovScale").value);
+    if (layout !== "row") p.set("layout", layout);
+    if (show !== "box") p.set("show", show);
+    const hide = [...$("ovHide").querySelectorAll("input:checked")].map((c) => c.value);
+    if (hide.length) p.set("hide", hide.join(","));
+    if (scale > 0 && scale !== 1) p.set("scale", String(scale));
+    if (!$("ovTitle").checked) p.set("title", "0");
+    if (!$("ovAlerts").checked) p.set("alerts", "0");
+    if (bg !== "none") p.set("bg", bg);
+    const qs = p.toString().replace(/%2C/g, ",");
+    $("ovUrl").value = location.origin + "/overlay" + (qs ? "?" + qs : "");
+    updateOverlayPreview();
+  }
+
+  // Only load the preview while the section is open, so a closed panel holds no extra SSE stream.
+  function updateOverlayPreview() {
+    const frame = $("ovPreview");
+    const url = $("ovUrl").value;
+    const want = $("overlayCfg").open ? url + (url.indexOf("?") >= 0 ? "&" : "?") + "test=1" : "about:blank";
+    if (frame.src !== want) frame.src = want;
+  }
+
+  async function copyOverlayUrl() {
+    const inp = $("ovUrl");
+    try {
+      await navigator.clipboard.writeText(inp.value);
+    } catch (_) {
+      inp.select();
+      document.execCommand("copy");
+    }
+    toast("Overlay link copied");
+  }
+
+  // ---------- wiring ----------
+  $("packPlus").addEventListener("click", () => packs(1));
+  $("packMinus").addEventListener("click", () => packs(-1));
+  $("undoBtn").addEventListener("click", undo);
+  $("nextBoxBtn").addEventListener("click", nextBox);
+  $("prevBoxBtn").addEventListener("click", prevBox);
+  $("rangeForm").addEventListener("submit", setBoxes);
+  document.querySelectorAll("[data-learn]").forEach((b) => b.addEventListener("click", () => startLearn(b.dataset.learn)));
+  document.querySelectorAll("[data-clear]").forEach((b) => b.addEventListener("click", () => {
+    post("/api/settings", { pedal: { [b.dataset.clear]: null } }).then((ok) => { if (ok) toast("Pedal key cleared"); });
+  }));
+  $("showPacks").addEventListener("change", (ev) => setDisplay("packs", ev.target.checked));
+  $("showBoxes").addEventListener("change", (ev) => setDisplay("boxes", ev.target.checked));
+  $("showLeft").addEventListener("change", (ev) => setDisplay("packsLeft", ev.target.checked));
+  $("showTracker").addEventListener("change", (ev) => setDisplay("tracker", ev.target.checked));
+  $("showCaseLog").addEventListener("change", (ev) => setDisplay("caseLog", ev.target.checked));
+  $("showShowcase").addEventListener("change", (ev) => setDisplay("showcase", ev.target.checked));
+  $("panelOpacity").addEventListener("input", () => { opacityDragging = true; sendOpacity(false); });
+  $("panelOpacity").addEventListener("change", () => { opacityDragging = false; sendOpacity(true); });
+  $("resetBtn").addEventListener("click", reset);
+  $("cardClear").addEventListener("click", () => { $("cardInput").value = ""; $("cardInput").focus(); });
+  $("cardInput").addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); ev.target.blur(); }
+    if (ev.key === "Escape") { ev.target.value = ""; ev.target.blur(); }
+  });
+  $("logScope").addEventListener("click", () => { logAll = !logAll; if (state) renderLog(); });
+  $("testClear").addEventListener("click", () => post("/api/test/clear", {}));
+
+  const form = $("settingsForm");
+  form.addEventListener("input", () => { settingsDirty = true; });
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const ppb = parseInt($("setPpb").value, 10);
+    if (!(ppb >= 1)) { toast("Packs per box must be 1 or more", true); return; }
+    const labels = {};
+    // Send every field: an empty label tells the server to restore the default.
+    for (const inp of $("labelFields").querySelectorAll("input")) {
+      labels[inp.dataset.id] = inp.value.trim();
+    }
+    const ok = await post("/api/settings", { title: $("setTitle").value.trim(), packsPerBox: ppb, labels });
+    if (ok) { settingsDirty = false; renderSettings(); toast("Settings saved"); }
+  });
+  $("settings").addEventListener("toggle", () => {
+    if (!$("settings").open) { settingsDirty = false; if (state) renderSettings(); }
+  });
+
+  for (const id of ["ovLayout", "ovShow", "ovBg", "ovScale", "ovTitle", "ovAlerts"]) {
+    $(id).addEventListener("input", buildOverlayUrl);
+    $(id).addEventListener("change", buildOverlayUrl);
+  }
+  $("ovCopy").addEventListener("click", copyOverlayUrl);
+  $("overlayCfg").addEventListener("toggle", updateOverlayPreview);
+  $("ovUrl").addEventListener("focus", (ev) => ev.target.select());
+
+  // Keyboard shortcuts (second-monitor use). Ignored while typing in a field.
+  document.addEventListener("keydown", (ev) => {
+    const t = ev.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || !state) return;
+    const m = /^Digit([1-9])$/.exec(ev.code);
+    if (m) {
+      const r = state.rarities[+m[1] - 1];
+      if (!r) return;
+      ev.preventDefault();
+      ev.shiftKey ? removeOne(r.id) : hit(r.id);
+    } else if (ev.key === "z" || ev.key === "Z") {
+      ev.preventDefault(); undo();
+    } else if (ev.key === "+" || ev.key === "=" || ev.code === "NumpadAdd") {
+      ev.preventDefault(); packs(1);
+    } else if (ev.key === "-" || ev.key === "_" || ev.code === "NumpadSubtract") {
+      ev.preventDefault(); packs(-1);
+    } else if (ev.key === "/") {
+      ev.preventDefault(); $("cardInput").focus();
+    }
+  });
+
+  // Phones drop SSE when backgrounded; resync when the tab comes back.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      loadState();
+      if (!es || es.readyState === EventSource.CLOSED) connect();
+    }
+  });
+
+  loadState();
+  connect();
+})();
+</script>
+</body>
+</html>

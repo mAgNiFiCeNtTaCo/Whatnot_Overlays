@@ -1,0 +1,9 @@
+# Runtime data: training photos (~340 MB), counter state, card list, guess log, debug frames.
+# Not code; back up data/ separately if you want a copy.
+data/
+
+# Python caches, canvas markers, logs
+__pycache__/
+*.pyc
+.nodeterm/
+*.log

@@ -1,0 +1,1078 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hit Counter Overlay</title>
+<style>
+  :root {
+    --scale: 1;
+    --plate: rgba(8, 8, 16, 0.66);
+    --plate-strong: rgba(8, 8, 16, 0.86);
+    /* 8-way outline + soft drop shadow: keeps text readable over any camera background */
+    --stroke:
+      0.055em 0 0 #000, -0.055em 0 0 #000, 0 0.055em 0 #000, 0 -0.055em 0 #000,
+      0.04em 0.04em 0 #000, -0.04em 0.04em 0 #000, 0.04em -0.04em 0 #000, -0.04em -0.04em 0 #000,
+      0 0.08em 0.3em rgba(0, 0, 0, 0.85);
+    --heavy: "Arial Black", "Segoe UI Black", "Helvetica Neue", Impact, system-ui, sans-serif;
+  }
+  html { font-size: calc(16px * var(--scale)); }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+  }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+  body.bg-dark { background: #0d0d16; }
+
+  .stage {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  body.ready .stage { opacity: 1; }
+
+  /* ---------- header ---------- */
+  .head { display: flex; flex-direction: column; gap: 0.3rem; }
+  .head[hidden], .title[hidden], .meta[hidden], .grp[hidden], .bar[hidden], .chip small[hidden] { display: none; }
+  .grp { display: inline-flex; align-items: center; gap: 0.5rem; }
+  .title {
+    font-family: var(--heavy);
+    font-size: 1.55rem;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    text-shadow: var(--stroke);
+  }
+  .meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-weight: 800;
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+    text-shadow: var(--stroke);
+  }
+  .chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3em;
+    background: var(--plate);
+    border: 0.1rem solid rgba(255, 255, 255, 0.22);
+    padding: 0.12rem 0.6rem 0.18rem;
+    border-radius: 0.45rem;
+  }
+  .chip small { font-size: 0.72em; letter-spacing: 0.08em; opacity: 0.85; }
+  .bar {
+    width: 7.5rem;
+    height: 0.5rem;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 0 0 0.12rem rgba(0, 0, 0, 0.7);
+    overflow: hidden;
+  }
+  .bar.boxes i { background: linear-gradient(90deg, #ffe27a, #ff9a5a); }
+  /* packs left: green over 50%, yellow + slow pulse under 50%, red + fast pulse under 20% */
+  .chip.left { --u: 61, 220, 132; transition: border-color 0.4s ease, background 0.4s ease; }
+  .chip.left.warn { --u: 255, 210, 63; }
+  .chip.left.low  { --u: 255, 59, 59; }
+  .chip.left small { letter-spacing: 0.06em; }
+  .chip.left b { color: rgb(var(--u)); }
+  .chip.left:not(.done) {
+    border-color: rgb(var(--u));
+    background: linear-gradient(180deg, rgba(var(--u), 0.4), rgba(var(--u), 0.12)), var(--plate);
+    box-shadow: 0 0 0.6rem rgba(var(--u), 0.5);
+  }
+  .chip.left.warn { animation: urgePulse 1.8s ease-in-out infinite; }
+  .chip.left.low  { animation: urgePulse 0.85s ease-in-out infinite; --grow: 1.1; }
+  .chip.left.done { opacity: 0.8; }
+  @keyframes urgePulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0.5rem rgba(var(--u), 0.45); }
+    50%      { transform: scale(var(--grow, 1.05)); box-shadow: 0 0 1.5rem rgba(var(--u), 0.95); }
+  }
+  /* case tracker: running totals of the chase rarities across the whole case */
+  .tracker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 800;
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+    text-shadow: var(--stroke);
+  }
+  .tracker[hidden] { display: none; }
+  .tracker-h { font-size: 0.72rem; letter-spacing: 0.12em; opacity: 0.9; }
+  .tchip {
+    --c: #fff;
+    --rgb: 255, 255, 255;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4em;
+    padding: 0.12rem 0.6rem 0.18rem;
+    border-radius: 0.45rem;
+    border: 0.1rem solid var(--c);
+    background: linear-gradient(180deg, rgba(var(--rgb), 0.32), rgba(var(--rgb), 0.08)), var(--plate);
+    box-shadow: 0 0 0.5rem rgba(var(--rgb), 0.35);
+  }
+  .tchip .tl { font-size: 0.78em; letter-spacing: 0.05em; text-transform: uppercase; }
+  .tchip b { font-family: var(--heavy); font-size: 1.1em; color: var(--c); }
+  .tchip.zero { opacity: 0.6; }
+  .tchip.bump { animation: bump 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
+
+  /* case log: chase pulls per table of boxes ("BOXES 1–4  2 OF · 1 STARLIGHT") */
+  .caselog {
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-content: start;
+    gap: 0.12rem 0.7rem;
+    align-items: baseline;
+    font-weight: 800;
+    font-size: 0.92rem;
+    font-variant-numeric: tabular-nums;
+    text-shadow: var(--stroke);
+  }
+  .caselog[hidden] { display: none; }
+  .cl-box { font-size: 0.72rem; letter-spacing: 0.1em; white-space: nowrap; opacity: 0.85; }
+  .cl-pulls { text-transform: uppercase; letter-spacing: 0.03em; }
+  .cl-pulls b { font-family: var(--heavy); color: var(--c); }
+  .cl-pulls .sep { opacity: 0.6; margin: 0 0.3em; }
+  .cl-pulls.none { opacity: 0.55; }
+  .cl-now { color: #7fd4ff; opacity: 1; }
+
+  /* biggest hits: a right-to-left ticker of the case's chase pulls, Starlight Overframe first */
+  .showcase { display: flex; align-items: center; gap: 0.6rem; min-width: 24rem;  /* as wide as the overlay */
+              font-weight: 800; text-shadow: var(--stroke); }
+  .showcase[hidden] { display: none; }
+  .sc-head { flex: none; font-size: 0.72rem; letter-spacing: 0.14em; opacity: 0.9; white-space: nowrap; }
+  .sc-window { flex: 1 1 0; width: 0; min-width: 0; overflow: hidden;  /* never widens the overlay */
+               -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+               mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+  .sc-track { display: inline-flex; white-space: nowrap; will-change: transform; }
+  .sc-row { display: inline-flex; align-items: baseline; gap: 0.4rem; font-size: 0.95rem; padding-right: 2.2rem; }
+  .sc-tag { font-family: var(--heavy); font-size: 0.7rem; letter-spacing: 0.06em; color: #111; text-shadow: none;
+            background: var(--c); border-radius: 0.3rem; padding: 0.05rem 0.35rem; box-shadow: 0 0 0.6rem rgba(var(--rgb), 0.55); }
+  .sc-name { white-space: nowrap; }
+  .sc-box { font-size: 0.68rem; letter-spacing: 0.08em; opacity: 0.7; white-space: nowrap; }
+  .sc-row.new .sc-tag { animation: sc-glow 1.2s ease-in-out 4; }
+  @keyframes sc-glow { 50% { box-shadow: 0 0 1.4rem 0.2rem rgba(var(--rgb), 0.95); transform: scale(1.12); } }
+  .sc-none { font-size: 0.8rem; opacity: 0.55; white-space: nowrap; }
+  .cl-now::before { content: "\25B8 "; }
+  .bar i {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #7fd4ff, #d48cff);
+    transition: width 0.45s ease;
+  }
+
+  /* ---------- tiles ---------- */
+  .tiles { display: flex; gap: 0.5rem; }
+  .layout-column .tiles { flex-direction: column; }
+
+  .tile {
+    --c: #fff;
+    --rgb: 255, 255, 255;
+    position: relative;
+    border-radius: 0.8rem;
+    border: 0.15rem solid var(--c);
+    background:
+      linear-gradient(180deg, rgba(var(--rgb), 0.26), rgba(var(--rgb), 0) 65%),
+      var(--plate);
+    box-shadow:
+      0 0.25rem 0.9rem rgba(0, 0, 0, 0.55),
+      inset 0 0 1.1rem rgba(var(--rgb), 0.18);
+  }
+  .layout-row .tile {
+    display: grid;
+    grid-template-areas: "badge" "count" "label" "sub";
+    justify-items: center;
+    align-content: start;
+    row-gap: 0.15rem;
+    min-width: 6.6rem;
+    max-width: 8.2rem;
+    padding: 0.5rem 0.55rem 0.55rem;
+    text-align: center;
+  }
+  .layout-column .tile {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "badge label count" "badge sub count";
+    align-items: center;
+    column-gap: 0.65rem;
+    min-width: 16rem;
+    padding: 0.4rem 0.75rem 0.4rem 0.55rem;
+  }
+  .layout-column .tile.no-sub { grid-template-areas: "badge label count" "badge label count"; }
+
+  .sheen {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .badge {
+    grid-area: badge;
+    position: relative;
+    font-family: var(--heavy);
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+    line-height: 1.25;
+    color: #101018;
+    background: var(--c);
+    padding: 0.08rem 0.5rem;
+    border-radius: 0.4rem;
+    box-shadow: 0 0 0 0.1rem rgba(0, 0, 0, 0.6), 0 0 0.7rem rgba(var(--rgb), 0.75);
+  }
+  .count {
+    grid-area: count;
+    position: relative;
+    font-family: var(--heavy);
+    font-size: 3rem;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    text-shadow: var(--stroke), 0 0 0.35em rgba(var(--rgb), 0.6);
+    transition: opacity 0.3s ease;
+  }
+  .layout-column .count { font-size: 2.6rem; min-width: 1.4em; text-align: right; }
+  .tile.zero .count { opacity: 0.55; }
+  .label {
+    grid-area: label;
+    position: relative;
+    font-weight: 800;
+    font-size: 0.8rem;
+    line-height: 1.15;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-shadow: var(--stroke);
+    overflow-wrap: anywhere;
+  }
+  .layout-column .label { font-size: 1.02rem; }
+  .sub {
+    grid-area: sub;
+    position: relative;
+    font-weight: 700;
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.88);
+    text-shadow: var(--stroke);
+  }
+  .sub b { font-family: var(--heavy); font-weight: 900; color: #fff; margin-left: 0.25em; }
+  .sub[hidden] { display: none; }
+
+  /* hit: bump + glow ring */
+  .tile.hit { animation: bump 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.3); z-index: 2; }
+  .tile.hit::after {
+    content: "";
+    position: absolute;
+    inset: -0.15rem;
+    border-radius: inherit;
+    box-shadow: 0 0 1.5rem 0.35rem rgba(var(--rgb), 0.95), inset 0 0 1rem rgba(var(--rgb), 0.6);
+    pointer-events: none;
+    animation: glow 1.5s ease-out forwards;
+  }
+  @keyframes bump {
+    0%   { transform: scale(1); }
+    25%  { transform: scale(1.17) rotate(-1deg); }
+    55%  { transform: scale(0.97); }
+    100% { transform: scale(1); }
+  }
+  @keyframes glow { from { opacity: 1; } to { opacity: 0; } }
+
+  /* plain count change (state update, undo): small tick, no banner */
+  .count.tick { animation: tick 0.4s ease-out; }
+  @keyframes tick {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.14); }
+    100% { transform: scale(1); }
+  }
+
+  /* chase rarities: holo border + slow sheen once pulled */
+  .tile.chase {
+    border-color: transparent;
+    background:
+      linear-gradient(180deg, rgba(var(--rgb), 0.26), rgba(var(--rgb), 0) 65%) padding-box,
+      linear-gradient(var(--plate), var(--plate)) padding-box,
+      linear-gradient(115deg, #7fd4ff, #d48cff, #ff9ad5, #ffe27a, #7fd4ff, #d48cff) border-box;
+    background-size: 100% 100%, 100% 100%, 300% 100%;
+    animation: holoBorder 4s linear infinite;
+  }
+  .tile.chase.hit { animation: bump 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.3), holoBorder 4s linear infinite; }
+  .tile.chase:not(.zero) .sheen::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.38) 48%, rgba(var(--rgb), 0.3) 52%, transparent 65%);
+    background-size: 300% 100%;
+    animation: sheen 5s ease-in-out infinite;
+  }
+  @keyframes holoBorder { from { background-position: 0 0, 0 0, 0% 0; } to { background-position: 0 0, 0 0, 300% 0; } }
+  @keyframes sheen {
+    0%, 55% { background-position: 120% 0; }
+    100% { background-position: -120% 0; }
+  }
+
+  /* sparkle burst around a chase tile */
+  .spark {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    z-index: 3;
+    font-size: var(--s, 1rem);
+    line-height: 1;
+    color: var(--sc, #fff);
+    text-shadow: 0 0 0.4em var(--sc, #fff), 0 0 0.15em #fff;
+    pointer-events: none;
+    animation: burst var(--d, 0.9s) cubic-bezier(0.15, 0.7, 0.3, 1) forwards;
+  }
+  @keyframes burst {
+    0%   { transform: translate(-50%, -50%) scale(0.2) rotate(0deg); opacity: 1; }
+    70%  { opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(180deg); opacity: 0; }
+  }
+
+  /* ---------- hit banner ---------- */
+  .alert-slot {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 5.9rem;
+  }
+  .layout-column .alert-slot { justify-content: flex-start; }
+  .alert-slot[hidden] { display: none; }
+  .alert {
+    --c: #fff;
+    --rgb: 255, 255, 255;
+    position: relative;
+    max-width: 100%;
+    visibility: hidden;
+    opacity: 0;
+  }
+  .alert.in  { visibility: visible; animation: alertIn 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) forwards; }
+  .alert.out { visibility: visible; animation: alertOut 0.4s ease-in forwards; }
+  @keyframes alertIn {
+    0%   { opacity: 0; transform: translateY(-0.8rem) scale(0.7); }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes alertOut {
+    0%   { opacity: 1; transform: none; }
+    100% { opacity: 0; transform: translateY(0.6rem) scale(0.92); }
+  }
+  .alert-box {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.45rem 1.4rem 0.6rem;
+    border-radius: 0.95rem;
+    border: 0.2rem solid var(--c);
+    background:
+      linear-gradient(180deg, rgba(var(--rgb), 0.38), rgba(var(--rgb), 0.06)),
+      var(--plate-strong);
+    box-shadow: 0 0.3rem 1.2rem rgba(0, 0, 0, 0.6), 0 0 1.6rem rgba(var(--rgb), 0.55);
+    text-align: center;
+  }
+  .alert-kicker {
+    font-family: var(--heavy);
+    font-size: 0.78rem;
+    letter-spacing: 0.3em;
+    color: #fff;
+    text-shadow: var(--stroke);
+  }
+  .alert-kicker[hidden] { display: none; }
+  .alert-name {
+    font-family: var(--heavy);
+    font-size: 2.1rem;
+    font-style: italic;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+    color: var(--c);
+    text-shadow: var(--stroke), 0 0 0.4em rgba(var(--rgb), 0.7);
+    overflow-wrap: anywhere;
+  }
+  .layout-column .alert-name { font-size: 1.6rem; }
+  .alert-card {
+    margin-top: 0.1rem;
+    font-weight: 800;
+    font-size: 1.15rem;
+    line-height: 1.2;
+    color: #fff;
+    text-shadow: var(--stroke);
+    overflow-wrap: anywhere;
+  }
+  .alert-card[hidden] { display: none; }
+
+  /* chase banner: holographic frame, rainbow name, twinkling sparkles */
+  .alert.chase .alert-box {
+    border-color: transparent;
+    background:
+      linear-gradient(180deg, rgba(var(--rgb), 0.38), rgba(var(--rgb), 0.06)) padding-box,
+      linear-gradient(var(--plate-strong), var(--plate-strong)) padding-box,
+      linear-gradient(115deg, #7fd4ff, #d48cff, #ff9ad5, #ffe27a, #7fd4ff, #d48cff) border-box;
+    background-size: 100% 100%, 100% 100%, 300% 100%;
+    animation: holoBorder 1.6s linear infinite;
+    box-shadow: 0 0.3rem 1.2rem rgba(0, 0, 0, 0.6), 0 0 2rem rgba(var(--rgb), 0.75), 0 0 3.2rem rgba(255, 154, 213, 0.35);
+  }
+  .alert.chase .alert-name {
+    color: transparent;
+    background: linear-gradient(90deg, #ffffff, var(--c), #fff3b0, #ff9ad5, var(--c), #ffffff);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    text-shadow: none;
+    /* text-shadow would paint over clipped-gradient text, so outline with drop-shadow instead */
+    filter: drop-shadow(0.05em 0 0 #000) drop-shadow(-0.05em 0 0 #000) drop-shadow(0 0.05em 0 #000) drop-shadow(0 -0.05em 0 #000) drop-shadow(0 0 0.3em rgba(var(--rgb), 0.8));
+    animation: holoText 2.2s linear infinite;
+  }
+  .alert.chase .alert-box::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.3) 48%, rgba(var(--rgb), 0.25) 52%, transparent 65%);
+    background-size: 300% 100%;
+    animation: sheen 1.8s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes holoText { from { background-position: 0% 0; } to { background-position: 300% 0; } }
+  .twinkle {
+    position: absolute;
+    z-index: 2;
+    font-size: var(--s, 1rem);
+    line-height: 1;
+    color: var(--sc, #fff);
+    text-shadow: 0 0 0.45em var(--sc, #fff), 0 0 0.12em #fff;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0);
+    animation: twinkle var(--d, 1.2s) ease-in-out var(--delay, 0s) infinite;
+  }
+  @keyframes twinkle {
+    0%, 100% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
+    50%      { transform: translate(-50%, -50%) scale(1) rotate(90deg); opacity: 1; }
+  }
+
+  /* ---------- reduced motion: no movement, keep fades and colour ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    .tile.hit, .tile.chase, .tile.chase.hit, .count.tick, .chip.left.warn, .chip.left.low, .tchip.bump,
+    .alert.chase .alert-box, .alert.chase .alert-name { animation: none; }
+    .tile.chase:not(.zero) .sheen::before, .alert.chase .alert-box::before { display: none; }
+    .spark, .twinkle { display: none; }
+    .alert.in  { animation: fadeIn 0.3s ease forwards; }
+    .alert.out { animation: fadeOut 0.3s ease forwards; }
+    .bar i { transition: none; }
+    @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+  }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="head" id="head">
+    <div class="title" id="title"></div>
+    <div class="meta" id="meta">
+      <span class="grp" id="boxGrp">
+        <span class="chip"><small id="boxLabel">BOX</small><span><b id="boxNum">1</b><span id="boxOf"></span></span></span>
+        <span class="bar boxes" id="boxBarWrap" aria-hidden="true"><i id="boxBar"></i></span>
+      </span>
+      <span class="grp" id="packGrp">
+        <span class="chip"><small>PACK</small><span><b id="packs">0</b> / <span id="packsPer">24</span></span></span>
+        <span class="bar" aria-hidden="true"><i id="bar"></i></span>
+      </span>
+      <span class="grp" id="leftGrp">
+        <span class="chip left" id="leftChip"><small id="leftPre"></small><b id="leftNum">0</b><small id="leftPost">PACKS LEFT</small></span>
+      </span>
+    </div>
+    <div class="tracker" id="tracker"><small class="tracker-h" id="trackerHead">CASE TOTAL</small></div>
+    <div class="caselog" id="caseLog"></div>
+    <div class="showcase" id="showcase"></div>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div class="alert-slot" id="alertSlot">
+    <div class="alert" id="alert" aria-live="polite">
+      <div class="alert-box" id="alertBox">
+        <div class="alert-kicker" id="alertKicker">&#10022; CHASE PULL &#10022;</div>
+        <div class="alert-name" id="alertName"></div>
+        <div class="alert-card" id="alertCard"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // Fallback if a state payload ever lacks `rarities` (CONTRACT.md table).
+  const DEFAULT_RARITIES = [
+    { id: 'ultra', label: 'Ultra Rare', short: 'UR', color: '#f5c542' },
+    { id: 'secret', label: 'Secret Rare', short: 'SCR', color: '#c0c8d8' },
+    { id: 'overframe', label: 'Overframe', short: 'OF', color: '#ff6b35' },
+    { id: 'starlight', label: 'Starlight Rare', short: 'STR', color: '#7fd4ff' },
+    { id: 'starlight_overframe', label: 'Starlight Overframe', short: 'SOF', color: '#d48cff' },
+  ];
+  const CHASE = new Set(['starlight', 'starlight_overframe']);
+  // Running case totals for the rarities that come in an unknown number per case.
+  const TRACKED = ['overframe', 'starlight', 'starlight_overframe'];
+  const SPARK_COLORS = ['#ffffff', '#7fd4ff', '#d48cff', '#ff9ad5', '#ffe27a'];
+  const HOLD_MS = 3500;
+  const HOLD_BACKLOG_MS = 2200; // shorter hold while more banners are waiting
+  const ENTER_MS = 500;
+  const EXIT_MS = 400;
+  const MAX_QUEUE = 12;
+  const WARN_SHARE = 0.5; // under 50% of the table left: yellow, slow pulse
+  const LOW_SHARE = 0.2;  // under 20% left: red, fast pulse, "ONLY N PACKS LEFT"
+
+  // ---------- query params ----------
+  const q = new URLSearchParams(location.search);
+  const flag = (name, def) => {
+    const v = q.get(name);
+    if (v === null || v.trim() === '') return def;
+    return !/^(0|false|no|off)$/i.test(v.trim());
+  };
+  const pick = (name, allowed, def) => {
+    const v = (q.get(name) || '').trim().toLowerCase();
+    return allowed.includes(v) ? v : def;
+  };
+  const scaleRaw = parseFloat(q.get('scale'));
+  const opts = {
+    layout: pick('layout', ['row', 'column'], 'row'),
+    show: pick('show', ['box', 'session', 'both'], 'box'),
+    hide: new Set((q.get('hide') || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)),
+    scale: Number.isFinite(scaleRaw) && scaleRaw > 0 ? Math.min(Math.max(scaleRaw, 0.2), 8) : 1,
+    title: flag('title', true),
+    packs: flag('packs', true),
+    boxes: flag('boxes', true),
+    left: flag('left', true),
+    tracker: flag('tracker', true),
+    caselog: flag('caselog', true),
+    showcase: flag('showcase', true),
+    alerts: flag('alerts', true),
+    test: q.get('test') === '1',  // show scanner test-mode hits (control panel preview only)
+    bg: pick('bg', ['none', 'dark'], 'none'),
+  };
+
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+  const calm = () => !!(reduceMotion && reduceMotion.matches);
+
+  const $ = id => document.getElementById(id);
+  const el = {
+    stage: $('stage'), head: $('head'), title: $('title'), meta: $('meta'),
+    tracker: $('tracker'), trackerHead: $('trackerHead'), caseLog: $('caseLog'), showcase: $('showcase'),
+    boxNum: $('boxNum'), boxOf: $('boxOf'), boxLabel: $('boxLabel'), boxGrp: $('boxGrp'),
+    boxBarWrap: $('boxBarWrap'), boxBar: $('boxBar'), packGrp: $('packGrp'), leftGrp: $('leftGrp'),
+    leftChip: $('leftChip'), leftPre: $('leftPre'), leftNum: $('leftNum'), leftPost: $('leftPost'), packs: $('packs'), packsPer: $('packsPer'), bar: $('bar'),
+    tiles: $('tiles'), alertSlot: $('alertSlot'), alert: $('alert'), alertBox: $('alertBox'),
+    alertKicker: $('alertKicker'), alertName: $('alertName'), alertCard: $('alertCard'),
+  };
+
+  document.documentElement.style.setProperty('--scale', String(opts.scale));
+  document.body.classList.add('layout-' + opts.layout);
+  if (opts.bg === 'dark') document.body.classList.add('bg-dark');
+  el.alertSlot.hidden = !opts.alerts;
+
+  // ---------- helpers ----------
+  const hexToRgb = hex => {
+    let h = String(hex || '').trim().replace(/^#/, '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    if (!/^[0-9a-f]{6}$/i.test(h)) return '255, 255, 255';
+    const n = parseInt(h, 16);
+    return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+  };
+  const safeColor = c => (/^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(String(c || '').trim()) ? String(c).trim() : '#ffffff');
+  const num = v => (Number.isFinite(Number(v)) ? Math.max(0, Math.trunc(Number(v))) : 0);
+  const setColor = (node, color) => {
+    const c = safeColor(color);
+    node.style.setProperty('--c', c);
+    node.style.setProperty('--rgb', hexToRgb(c));
+  };
+  const restartClass = (node, cls) => {
+    node.classList.remove(cls);
+    void node.offsetWidth; // reflow so the animation replays
+    node.classList.add(cls);
+  };
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+
+  // ---------- rendering ----------
+  let state = null;
+  const tiles = new Map(); // id -> {root, badge, label, count, sub, subNum, shown, hitTimer}
+
+  const rarityList = () =>
+    (state && Array.isArray(state.rarities) && state.rarities.length ? state.rarities : DEFAULT_RARITIES);
+  const findRarity = id => rarityList().find(r => r && r.id === id) || DEFAULT_RARITIES.find(r => r.id === id) || null;
+
+  function makeTile(id) {
+    const root = document.createElement('div');
+    root.className = 'tile zero' + (CHASE.has(id) ? ' chase' : '');
+    root.dataset.id = id;
+    const sheen = document.createElement('div');
+    sheen.className = 'sheen';
+    const badge = document.createElement('div');
+    badge.className = 'badge';
+    const count = document.createElement('div');
+    count.className = 'count';
+    count.textContent = '0';
+    const label = document.createElement('div');
+    label.className = 'label';
+    const sub = document.createElement('div');
+    sub.className = 'sub';
+    const subText = document.createElement('span');
+    subText.textContent = 'TOTAL';
+    const subNum = document.createElement('b');
+    subNum.textContent = '0';
+    sub.append(subText, subNum);
+    root.append(sheen, badge, count, label, sub);
+    count.addEventListener('animationend', () => count.classList.remove('tick'));
+    return { root, badge, label, count, sub, subNum, shown: null, hitTimer: 0 };
+  }
+
+  function render(first) {
+    const s = state;
+    const box = s.box || {};
+    const session = s.session || {};
+    const boxCounts = box.counts || {};
+    const sessionCounts = session.counts || {};
+
+    // header
+    const titleText = String(s.title || '').trim();
+    el.title.textContent = titleText;
+    el.title.hidden = !(opts.title && titleText);
+    // The URL params can hard-hide a group for this OBS source; the panel's live
+    // display toggles (state.display) show/hide it on every overlay.
+    const display = s.display || {};
+    el.packGrp.hidden = !(opts.packs && display.packs !== false);
+    el.boxGrp.hidden = !(opts.boxes && display.boxes !== false);
+    el.leftGrp.hidden = !(opts.left && display.packsLeft !== false);
+    el.meta.hidden = el.packGrp.hidden && el.boxGrp.hidden && el.leftGrp.hidden;
+    el.tracker.hidden = !(opts.tracker && display.tracker !== false);
+    el.caseLog.hidden = !(opts.caselog && display.caseLog !== false);
+    el.showcase.hidden = !(opts.showcase && display.showcase === true);  // off until turned on
+    el.head.hidden = el.title.hidden && el.meta.hidden && el.tracker.hidden && el.caseLog.hidden && el.showcase.hidden;
+    if (!el.showcase.hidden) renderShowcase(s.log || []);
+    renderTracker(sessionCounts, box, first);
+    if (!el.caseLog.hidden) renderCaseLog(s.log || [], box);
+    // Packs count across every box on the table (e.g. 4 boxes x 24 = 96).
+    const per = Math.max(1, num(box.packsTotal) || num(box.packsPerBox) || 1);
+    const opened = num(box.packsOpened);
+    const boxA = num(box.number) || 1;
+    const boxZ = Math.max(boxA, num(box.to) || boxA);
+    const of = box.of == null ? null : num(box.of);
+    // One box: "BOX 3 / 12". Several on the table: "BOXES 1–4 / 12".
+    el.boxLabel.textContent = boxZ > boxA ? 'BOXES' : 'BOX';
+    el.boxNum.textContent = boxZ > boxA ? boxA + '–' + boxZ : String(boxA);
+    el.boxOf.textContent = of ? ' / ' + of : '';
+    el.boxBarWrap.hidden = !of || of <= 1;
+    if (of) {
+      // Boxes before the table are done; the table counts in by packs opened.
+      const done = Math.min(of, boxA - 1 + (boxZ - boxA + 1) * Math.min(1, opened / per));
+      el.boxBar.style.width = Math.min(100, (done / of) * 100).toFixed(1) + '%';
+    }
+    // "57 PACKS LEFT" (green), yellow under 50%, "ONLY 12 PACKS LEFT" (red) under 20%,
+    // "ALL PACKS OPENED" at 0.
+    const left = Math.max(0, per - opened);
+    const share = left / per;
+    const low = left > 0 && share < LOW_SHARE;
+    el.leftChip.classList.toggle('low', low);
+    el.leftChip.classList.toggle('warn', left > 0 && !low && share < WARN_SHARE);
+    el.leftChip.classList.toggle('done', left === 0);
+    el.leftPre.hidden = !low;
+    el.leftPre.textContent = 'ONLY';
+    el.leftNum.hidden = left === 0;
+    el.leftNum.textContent = String(left);
+    el.leftPost.textContent = left === 0 ? 'ALL PACKS OPENED' : left === 1 ? 'PACK LEFT' : 'PACKS LEFT';
+    el.packs.textContent = String(opened);
+    el.packsPer.textContent = String(per);
+    el.bar.style.width = Math.min(100, (opened / per) * 100).toFixed(1) + '%';
+
+    // tiles, in state order, skipping hidden ids
+    const wanted = rarityList().filter(r => r && r.id && !opts.hide.has(String(r.id).toLowerCase()));
+    const keep = new Set();
+    wanted.forEach((r, i) => {
+      keep.add(r.id);
+      let t = tiles.get(r.id);
+      if (!t) {
+        t = makeTile(r.id);
+        tiles.set(r.id, t);
+      }
+      if (el.tiles.children[i] !== t.root) el.tiles.insertBefore(t.root, el.tiles.children[i] || null);
+
+      setColor(t.root, r.color);
+      t.badge.textContent = r.short || r.id.slice(0, 3).toUpperCase();
+      t.label.textContent = r.label || r.id;
+
+      const main = opts.show === 'session' ? num(sessionCounts[r.id]) : num(boxCounts[r.id]);
+      if (t.shown !== null && t.shown !== main && !first) restartClass(t.count, 'tick');
+      t.shown = main;
+      t.count.textContent = String(main);
+      t.root.classList.toggle('zero', main === 0);
+
+      const both = opts.show === 'both';
+      t.sub.hidden = !both;
+      t.root.classList.toggle('no-sub', !both);
+      if (both) t.subNum.textContent = String(num(sessionCounts[r.id]));
+    });
+    for (const [id, t] of tiles) {
+      if (!keep.has(id)) {
+        t.root.remove();
+        tiles.delete(id);
+      }
+    }
+  }
+
+  function applyState(s) {
+    if (!s || typeof s !== 'object') return;
+    // Ignore a stale snapshot (e.g. the initial fetch landing after a newer SSE event).
+    if (state && Number(s.updatedAt) < Number(state.updatedAt)) return;
+    const first = !state;
+    state = s;
+    try {
+      render(first);
+    } catch (e) {
+      /* never break the overlay on odd data */
+    }
+    document.body.classList.add('ready');
+  }
+
+  // ---------- case tracker ----------
+  const tracked = new Map(); // id -> {root, label, num, shown}
+  function renderTracker(counts, box, first) {
+    el.trackerHead.textContent = box.of != null ? 'CASE TOTAL' : 'TOTAL SO FAR';
+    for (const id of TRACKED) {
+      const r = findRarity(id);
+      let t = tracked.get(id);
+      if (opts.hide.has(id) || !r) {
+        if (t) { t.root.remove(); tracked.delete(id); }
+        continue;
+      }
+      if (!t) {
+        const root = document.createElement('span');
+        root.className = 'tchip zero';
+        const label = document.createElement('span');
+        label.className = 'tl';
+        const n = document.createElement('b');
+        n.textContent = '0';
+        root.append(label, n);
+        root.addEventListener('animationend', () => root.classList.remove('bump'));
+        el.tracker.appendChild(root);
+        t = { root, label, num: n, shown: null };
+        tracked.set(id, t);
+      }
+      setColor(t.root, r.color);
+      t.label.textContent = r.label || r.short || id;
+      const n = num(counts[id]);
+      if (t.shown !== null && n > t.shown && !first) restartClass(t.root, 'bump');
+      t.shown = n;
+      t.num.textContent = String(n);
+      t.root.classList.toggle('zero', n === 0);
+    }
+  }
+
+  // ---------- case log: chase pulls per table of boxes ----------
+  const CASELOG_ROWS = 6; // latest tables shown, so one-box-at-a-time stays short
+
+  function renderCaseLog(log, box) {
+    const groups = new Map(); // "first-last" -> {a, z, counts}
+    const group = (a, z) => {
+      const k = a + '-' + z;
+      if (!groups.has(k)) groups.set(k, { a, z, counts: {} });
+      return groups.get(k);
+    };
+    for (const e of log) {
+      if (!e) continue;
+      const a = num(e.box) || 1;
+      const g = group(a, Math.max(a, num(e.boxTo) || a));
+      if (TRACKED.includes(e.rarity)) g.counts[e.rarity] = (g.counts[e.rarity] || 0) + 1;
+    }
+    const curA = num(box.number) || 1;
+    const curZ = Math.max(curA, num(box.to) || curA);
+    group(curA, curZ);
+    const rows = [...groups.values()].sort((x, y) => x.a - y.a || x.z - y.z).slice(-CASELOG_ROWS);
+
+    el.caseLog.textContent = '';
+    for (const g of rows) {
+      const now = g.a === curA && g.z === curZ;
+      const lab = document.createElement('span');
+      lab.className = 'cl-box' + (now ? ' cl-now' : '');
+      lab.textContent = g.z > g.a ? 'BOXES ' + g.a + '–' + g.z : 'BOX ' + g.a;
+      const pulls = document.createElement('span');
+      pulls.className = 'cl-pulls';
+      for (const id of TRACKED) {
+        const n = g.counts[id] || 0;
+        const r = findRarity(id);
+        if (!n || !r || opts.hide.has(id)) continue;
+        if (pulls.childNodes.length) {
+          const sep = document.createElement('span');
+          sep.className = 'sep';
+          sep.textContent = '·';
+          pulls.append(sep);
+        }
+        const item = document.createElement('span');
+        setColor(item, r.color);
+        const b = document.createElement('b');
+        b.textContent = String(n);
+        item.append(b, ' ' + (r.label || r.short || id));
+        pulls.append(item);
+      }
+      if (!pulls.childNodes.length) {
+        pulls.classList.add('none');
+        pulls.textContent = now ? 'NOTHING YET' : '—';
+      }
+      el.caseLog.append(lab, pulls);
+    }
+  }
+
+  const SHOWCASE_ORDER = ['starlight_overframe', 'starlight', 'overframe']; // biggest first
+  const SHOWCASE_MAX = 24;      // pulls in the ticker
+  const TICKER_SPEED = 55;      // px per second (before scale), so long and short lists move alike
+  let showcaseSeen = null;      // entry ids already shown, so only new pulls glow
+  let ticker = null;            // {track, width of one copy, start time}: moved every frame by tickerFrame
+
+  // Right to left at a steady speed; after one copy's width it wraps to the start (the second copy
+  // sits exactly where the first began, so the loop is seamless).
+  function tickerFrame(now) {
+    if (ticker) {
+      if (!ticker.width) ticker.width = ticker.track.scrollWidth / 2;
+      if (ticker.width > 0) {
+        const x = (((now - ticker.t0) / 1000) * TICKER_SPEED * opts.scale) % ticker.width;
+        ticker.track.style.transform = 'translateX(' + (-x).toFixed(1) + 'px)';
+      }
+    }
+    requestAnimationFrame(tickerFrame);
+  }
+  requestAnimationFrame(tickerFrame);
+
+  function showcaseItem(e, isNew) {
+    const r = findRarity(e.rarity) || { short: e.rarity, label: e.rarity, color: '#ffffff' };
+    const row = document.createElement('span');
+    row.className = 'sc-row' + (isNew ? ' new' : '');
+    setColor(row, r.color);
+    const tag = document.createElement('span');
+    tag.className = 'sc-tag';
+    tag.textContent = r.short || r.label;
+    const name = document.createElement('span');
+    name.className = 'sc-name';
+    name.textContent = (typeof e.card === 'string' && e.card.trim()) || r.label || r.short;
+    const where = document.createElement('span');
+    where.className = 'sc-box';
+    const a = num(e.box) || 1, z = Math.max(a, num(e.boxTo) || a);
+    where.textContent = z > a ? 'BOXES ' + a + '–' + z : 'BOX ' + a;
+    row.append(tag, name, where);
+    return row;
+  }
+
+  function renderShowcase(log) {
+    const pulls = log.filter(e => e && SHOWCASE_ORDER.includes(e.rarity) && !opts.hide.has(e.rarity));
+    pulls.sort((a, b) => SHOWCASE_ORDER.indexOf(a.rarity) - SHOWCASE_ORDER.indexOf(b.rarity) || (Number(b.ts) || 0) - (Number(a.ts) || 0));
+    const items = pulls.slice(0, SHOWCASE_MAX);
+    const key = items.map(e => e.id + ':' + (e.card || '')).join('|');
+    if (el.showcase.dataset.key === key) return; // unchanged: keep scrolling where it is
+    el.showcase.dataset.key = key;
+    el.showcase.textContent = '';
+    const head = document.createElement('small');
+    head.className = 'sc-head';
+    head.textContent = '\u2726 BIGGEST HITS' + (pulls.length ? ' (' + pulls.length + ')' : '');
+    const win = document.createElement('div');
+    win.className = 'sc-window';
+    el.showcase.append(head, win);
+    if (!items.length) {
+      const none = document.createElement('span');
+      none.className = 'sc-none';
+      none.textContent = 'NO OVERFRAMES OR STARLIGHTS YET';
+      win.append(none);
+      showcaseSeen = new Set();
+      ticker = null;
+      return;
+    }
+    // Two copies of the list side by side, scrolled left by one copy's width, loop seamlessly.
+    const track = document.createElement('div');
+    track.className = 'sc-track';
+    for (let copy = 0; copy < 2; copy++) {
+      for (const e of items) track.append(showcaseItem(e, !!showcaseSeen && !showcaseSeen.has(e.id)));
+    }
+    win.append(track);
+    showcaseSeen = new Set(pulls.map(e => e.id));
+    ticker = calm() ? null : { track, width: 0, t0: performance.now() };
+  }
+
+  // ---------- hit effects ----------
+  function bumpTile(id) {
+    const t = tiles.get(id);
+    if (!t) return;
+    restartClass(t.root, 'hit');
+    clearTimeout(t.hitTimer);
+    t.hitTimer = setTimeout(() => t.root.classList.remove('hit'), 1600);
+    if (CHASE.has(id) && !calm()) burst(t.root);
+  }
+
+  function burst(host) {
+    const n = 12;
+    for (let i = 0; i < n; i++) {
+      const sp = document.createElement('span');
+      sp.className = 'spark';
+      sp.textContent = i % 3 === 0 ? '✦' : '✧';
+      const ang = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+      const dist = 3 + Math.random() * 2.5;
+      sp.style.setProperty('--dx', (Math.cos(ang) * dist).toFixed(2) + 'rem');
+      sp.style.setProperty('--dy', (Math.sin(ang) * dist).toFixed(2) + 'rem');
+      sp.style.setProperty('--s', (0.7 + Math.random() * 0.8).toFixed(2) + 'rem');
+      sp.style.setProperty('--d', (0.7 + Math.random() * 0.5).toFixed(2) + 's');
+      sp.style.setProperty('--sc', SPARK_COLORS[i % SPARK_COLORS.length]);
+      sp.addEventListener('animationend', () => sp.remove());
+      host.appendChild(sp);
+      setTimeout(() => sp.remove(), 2000); // safety if animations are off
+    }
+  }
+
+  function setTwinkles(on) {
+    el.alertBox.querySelectorAll('.twinkle').forEach(n => n.remove());
+    if (!on || calm()) return;
+    for (let i = 0; i < 14; i++) {
+      const sp = document.createElement('span');
+      sp.className = 'twinkle';
+      sp.textContent = i % 2 ? '✦' : '✧';
+      // scatter along the frame edge
+      const edge = i % 4;
+      const along = Math.random() * 100;
+      const x = edge === 0 ? along : edge === 1 ? 100 : edge === 2 ? along : 0;
+      const y = edge === 0 ? 0 : edge === 1 ? along : edge === 2 ? 100 : along;
+      sp.style.left = x + '%';
+      sp.style.top = y + '%';
+      sp.style.setProperty('--s', (0.6 + Math.random() * 0.8).toFixed(2) + 'rem');
+      sp.style.setProperty('--d', (0.9 + Math.random() * 0.8).toFixed(2) + 's');
+      sp.style.setProperty('--delay', (Math.random() * 1.2).toFixed(2) + 's');
+      sp.style.setProperty('--sc', SPARK_COLORS[i % SPARK_COLORS.length]);
+      el.alertBox.appendChild(sp);
+    }
+  }
+
+  // ---------- banner queue ----------
+  const queue = [];
+  let running = false;
+
+  function enqueue(item) {
+    queue.push(item);
+    if (queue.length > MAX_QUEUE) queue.splice(0, queue.length - MAX_QUEUE);
+    if (!running) runQueue();
+  }
+
+  async function runQueue() {
+    running = true;
+    try {
+      while (queue.length) {
+        const item = queue.shift();
+        const r = item.rarity;
+        const chase = CHASE.has(r.id);
+        setColor(el.alert, r.color);
+        el.alert.classList.toggle('chase', chase);
+        el.alertKicker.hidden = !chase;
+        el.alertName.textContent = String(r.label || r.id).toUpperCase() + '!';
+        el.alertCard.textContent = item.card || '';
+        el.alertCard.hidden = !item.card;
+        setTwinkles(chase);
+        el.alert.classList.remove('out');
+        restartClass(el.alert, 'in');
+        // Full hold normally; cut it short as soon as more banners are waiting.
+        const shownAt = Date.now();
+        while (Date.now() - shownAt < ENTER_MS + (queue.length ? HOLD_BACKLOG_MS : HOLD_MS)) await wait(100);
+        el.alert.classList.remove('in');
+        el.alert.classList.add('out');
+        await wait(EXIT_MS);
+        el.alert.classList.remove('out');
+        setTwinkles(false);
+      }
+    } finally {
+      running = false;
+    }
+  }
+
+  function onHit(d, test) {
+    if (!d || typeof d !== 'object') return;
+    const entry = d.entry || {};
+    const id = (d.rarity && d.rarity.id) || entry.rarity;
+    if (!id || opts.hide.has(String(id).toLowerCase())) return;
+    const rarity = Object.assign({ id }, findRarity(id) || {}, d.rarity || {});
+    if (!test) bumpTile(id);
+    if (opts.alerts) {
+      const card = typeof entry.card === 'string' ? entry.card.trim().slice(0, 80) : '';
+      enqueue({ rarity, card });
+    }
+  }
+
+  // ---------- data: initial fetch + SSE, silent retries ----------
+  let fetchTimer = 0;
+  function fetchState() {
+    clearTimeout(fetchTimer);
+    fetch('/api/state', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then(applyState)
+      .catch(() => {
+        if (!state) fetchTimer = setTimeout(fetchState, 3000);
+      });
+  }
+
+  let es = null;
+  let retryMs = 1000;
+  let retryTimer = 0;
+  function connect() {
+    clearTimeout(retryTimer);
+    if (!('EventSource' in window)) {
+      // very old browser: poll instead
+      setInterval(fetchState, 3000);
+      return;
+    }
+    try {
+      es = new EventSource('/api/events');
+    } catch (e) {
+      scheduleReconnect();
+      return;
+    }
+    es.addEventListener('open', () => { retryMs = 1000; });
+    es.addEventListener('state', ev => {
+      try { applyState(JSON.parse(ev.data)); } catch (e) { /* ignore bad frame */ }
+    });
+    es.addEventListener('hit', ev => {
+      try { onHit(JSON.parse(ev.data)); } catch (e) { /* ignore bad frame */ }
+    });
+    // Scanner test mode: only a preview with ?test=1 (the control panel's) shows test hits;
+    // the overlay in OBS never does.
+    if (opts.test) {
+      es.addEventListener('testHit', ev => {
+        try {
+          const d = JSON.parse(ev.data);
+          if (d && d.entry) d.entry = Object.assign({}, d.entry, { card: 'TEST \u00b7 ' + (d.entry.card || 'no name read') });
+          onHit(d, true);
+        } catch (e) { /* ignore bad frame */ }
+      });
+    }
+    es.addEventListener('error', () => {
+      // EventSource retries by itself while CONNECTING; if it gave up (CLOSED), rebuild it.
+      if (es && es.readyState === 2) {
+        es.close();
+        es = null;
+        scheduleReconnect();
+      }
+    });
+  }
+  function scheduleReconnect() {
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(connect, retryMs);
+    retryMs = Math.min(retryMs * 2, 10000);
+  }
+
+  fetchState();
+  connect();
+})();
+</script>
+</body>
+</html>
