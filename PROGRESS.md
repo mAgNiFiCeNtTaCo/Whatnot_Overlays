@@ -41,7 +41,11 @@ what's next.
   the `/save-progress` command. Tests: 114 passing.
 - **Git history started:** local repo, `data/` (photos, counter state), caches, logs excluded via
   `.gitignore`; files stored as-is (`core.autocrlf false`). Commits signed `mAgNiFiCeNtTaCo` with a private
-  placeholder email. GitHub: no, kept local (user's choice). `/save-progress` now snapshots each session.
+  placeholder email. `/save-progress` now snapshots each session.
+- **Published:** public at https://github.com/mAgNiFiCeNtTaCo/Whatnot_Overlays (user's choice, changed from
+  local-only). Audited first: no secrets, keys or personal info in any file or commit; `data/` never
+  committed. Added `LICENSE` (MIT) and the Outfit font's `web/OFL-Outfit.txt` (the OFL requires it when the
+  embedded font is shared). GitHub CLI installed (winget) and logged in as mAgNiFiCeNtTaCo.
 - **Open:** see "Known gaps / next steps" below.
 
 ## Built, in order
