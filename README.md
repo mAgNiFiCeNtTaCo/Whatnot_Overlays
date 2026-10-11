@@ -378,3 +378,9 @@ CONTRACT.md          API and data format reference
 ```
 
 Run the tests with `python -m unittest discover tests`.
+
+## License
+
+MIT (see `LICENSE`). The overlay embeds the Outfit font, which is under the SIL Open Font License 1.1
+(`web/OFL-Outfit.txt`). Card names and printings come from the free YGOPRODeck API at run time; no card
+data, images or training photos are included in this repository.
