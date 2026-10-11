@@ -39,6 +39,9 @@ what's next.
   eBay or nothing).
 - **Setup:** created this log, the shared brain (`D:\ClaudeProjects\_brain`, session-start scan hook) and
   the `/save-progress` command. Tests: 114 passing.
+- **Git history started:** local repo, `data/` (photos, counter state), caches, logs excluded via
+  `.gitignore`; files stored as-is (`core.autocrlf false`). Commits signed `mAgNiFiCeNtTaCo` with a private
+  placeholder email. GitHub: no, kept local (user's choice). `/save-progress` now snapshots each session.
 - **Open:** see "Known gaps / next steps" below.
 
 ## Built, in order
