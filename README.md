@@ -190,8 +190,9 @@ from your stream camera; later phases read the card name and suggest the rarity 
    isn't in OBS can be picked by number instead.
    **Best: Taco Cam (direct, full quality)**, listed first when the Taco Cam app (Webcam project) is
    running: the iPhone's own picture straight from Taco Cam through shared memory, with no OBS screenshot
-   and no JPEG squeeze, and in 4K when the phone sends 4K (Taco Cam: Camera tab > Resolution 4K; OBS
-   still gets its normal 1080p). Taco Cam turns it upright with its Extras tab > "Clip / scanner turn".
+   and no JPEG squeeze. Keep the phone at **1080p**: card finding is tuned for 1080p and cards are read at
+   420x612, so a 4K picture is shrunk to 1080p anyway (at full 4K it found no cards in tests). Taco Cam
+   turns it upright with its Extras tab > "Clip / scanner turn".
    Recognition was trained on Iriun/OBS pictures: after switching, run a session or two in **Test
    mode** and answer the "Needs your answer" queue so it relearns Taco Cam's look.
 3. Pick the rarity of the card in your hand (keys **1**-**6**; **6** = *Not a hit*, for commons,

@@ -145,5 +145,15 @@ class ScannerChoosesTacoCamTests(unittest.TestCase):
                 self.assertEqual(saved.get("camera"), "tacocam")
 
 
+class FitTests(unittest.TestCase):
+    def test_4k_is_shrunk_to_1080p_and_1080p_is_kept(self):
+        big = np.zeros((3840, 2160, 3), np.uint8)
+        self.assertEqual(app._fit_1080p(big).shape, (1920, 1080, 3))
+        small = np.zeros((1920, 1080, 3), np.uint8)
+        self.assertIs(app._fit_1080p(small), small)
+        land = np.zeros((2160, 3840, 3), np.uint8)
+        self.assertEqual(app._fit_1080p(land).shape, (1080, 1920, 3))
+
+
 if __name__ == "__main__":
     unittest.main()

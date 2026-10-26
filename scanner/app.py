@@ -211,12 +211,24 @@ class ObsSource:
 
 TACOCAM = "tacocam"
 TACOCAM_NAME = "Taco Cam (direct, full quality)"
+TACOCAM_MAX_SIDE = 1920  # card finding is tuned for (and recognition trained on) 1080p pictures
+
+
+def _fit_1080p(img):
+    """Shrink pictures bigger than 1080p (a 4K phone stream) to 1080p. The card finder works in pixels
+    tuned at 1080p (at 4K it missed every card in tests and ran 2.5x slower), and cards are read at
+    420x612 anyway, so 4K adds no detail there."""
+    h, w = img.shape[:2]
+    scale = TACOCAM_MAX_SIDE / max(h, w)
+    if scale >= 1.0:
+        return img
+    return cv2.resize(img, (round(w * scale), round(h * scale)), interpolation=cv2.INTER_AREA)
 
 
 class TacoCamSource:
     """The iPhone's full-quality picture straight from Taco Cam (shared memory, tacocam_feed.py): no OBS
-    screenshot, no JPEG, and 4K when the phone sends 4K. Taco Cam stores it as BGR, already turned upright
-    (its clip/scanner turn), so this only copies it (~8 ms at 4K)."""
+    screenshot, no JPEG. Taco Cam stores it as BGR, already turned upright (its clip/scanner turn), so this
+    only copies it; a 4K picture is shrunk to 1080p (_fit_1080p)."""
 
     def __init__(self, fps=DEFAULT_FPS, feed_name=None):
         self.index = TACOCAM
@@ -249,6 +261,7 @@ class TacoCamSource:
                 img, picture_id = got
                 if picture_id != last:
                     last = picture_id
+                    img = _fit_1080p(img)
                     with self._lock:
                         self._frame, self._ts, self.error = img, time.monotonic(), None
                 self._stop.wait(max(0.0, 1.0 / max(1, self.fps) - (time.monotonic() - started)))
@@ -279,7 +292,7 @@ def probe_tacocam(feed_name=None):
             if got is None:
                 time.sleep(0.1)
         if got is not None:
-            img = got[0]
+            img = _fit_1080p(got[0])
             h, w = img.shape[:2]
             entry.update(width=w, height=h, status="black" if img.mean() < 4 else "ok")
             thumb = cv2.resize(img, (192, max(1, int(192 * h / w))))
