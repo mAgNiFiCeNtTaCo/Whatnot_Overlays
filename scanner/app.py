@@ -29,7 +29,7 @@ from urllib.parse import unquote, urlsplit
 import cv2
 import numpy as np
 
-from . import detect, names, obsws, synth
+from . import detect, names, obsws, synth, tacocam_feed
 from . import rarity as recog
 
 HERE = Path(__file__).resolve().parent
@@ -209,7 +209,91 @@ class ObsSource:
         self._stop.set()
 
 
+TACOCAM = "tacocam"
+TACOCAM_NAME = "Taco Cam (direct, full quality)"
+
+
+class TacoCamSource:
+    """The iPhone's full-quality picture straight from Taco Cam (shared memory, tacocam_feed.py): no OBS
+    screenshot, no JPEG, and 4K when the phone sends 4K. Taco Cam stores it as BGR, already turned upright
+    (its clip/scanner turn), so this only copies it (~8 ms at 4K)."""
+
+    def __init__(self, fps=DEFAULT_FPS, feed_name=None):
+        self.index = TACOCAM
+        self.name = TACOCAM_NAME
+        self.fps = fps
+        self.feed_name = feed_name or tacocam_feed.FEED_NAME
+        self.error = None
+        self._frame, self._ts = None, 0.0
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        threading.Thread(target=self._run, name="tacocam-source", daemon=True).start()
+
+    def _run(self):
+        reader, last = None, None
+        try:
+            while not self._stop.is_set():
+                started = time.monotonic()
+                if reader is None:
+                    try:
+                        reader = tacocam_feed.FeedReader(self.feed_name)
+                    except (FileNotFoundError, ValueError, OSError):
+                        self.error = "Taco Cam isn't running on this PC. Open Taco Cam."
+                        self._stop.wait(2.0)
+                        continue
+                got = reader.read()
+                if got is None:
+                    self.error = "Taco Cam has no picture from the iPhone right now."
+                    self._stop.wait(0.2)
+                    continue
+                img, picture_id = got
+                if picture_id != last:
+                    last = picture_id
+                    with self._lock:
+                        self._frame, self._ts, self.error = img, time.monotonic(), None
+                self._stop.wait(max(0.0, 1.0 / max(1, self.fps) - (time.monotonic() - started)))
+        finally:
+            if reader is not None:
+                reader.close()
+
+    def latest(self):
+        with self._lock:
+            return self._frame, self._ts
+
+    def close(self):
+        self._stop.set()
+
+
+def probe_tacocam(feed_name=None):
+    """The Taco Cam entry for the camera list (with a thumbnail), or None when Taco Cam isn't running."""
+    try:
+        reader = tacocam_feed.FeedReader(feed_name or tacocam_feed.FEED_NAME)
+    except (FileNotFoundError, ValueError, OSError):
+        return None
+    entry = {"index": TACOCAM, "name": TACOCAM_NAME, "status": "black", "width": None, "height": None, "thumb": None}
+    try:
+        end = time.monotonic() + 1.5            # Taco Cam starts copying pictures once it is asked
+        got = None
+        while got is None and time.monotonic() < end:
+            got = reader.read()
+            if got is None:
+                time.sleep(0.1)
+        if got is not None:
+            img = got[0]
+            h, w = img.shape[:2]
+            entry.update(width=w, height=h, status="black" if img.mean() < 4 else "ok")
+            thumb = cv2.resize(img, (192, max(1, int(192 * h / w))))
+            ok, jpg = cv2.imencode(".jpg", thumb, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            if ok:
+                entry["thumb"] = "data:image/jpeg;base64," + base64.b64encode(jpg.tobytes()).decode()
+    finally:
+        reader.close()
+    return entry
+
+
 def make_source(spec, fps=DEFAULT_FPS):
+    if spec == TACOCAM:
+        return TacoCamSource(fps)
     if isinstance(spec, str) and spec.startswith(OBS_PREFIX):
         return ObsSource(spec[len(OBS_PREFIX):], fps)
     return CameraSource(int(spec))
@@ -450,7 +534,7 @@ class Scanner:
             return
         if isinstance(raw, dict):
             camera = raw.get("camera")
-            if (isinstance(camera, int) and not isinstance(camera, bool)) or (
+            if (isinstance(camera, int) and not isinstance(camera, bool)) or camera == TACOCAM or (
                     isinstance(camera, str) and camera.startswith(OBS_PREFIX) and len(camera) > len(OBS_PREFIX)):
                 self.config["camera"] = camera
             if raw.get("guide") in detect.GUIDE_SIZES:
@@ -823,8 +907,9 @@ class Scanner:
         index = body.get("index")
         is_obs = isinstance(index, str) and index.startswith(OBS_PREFIX) and 0 < len(index) - len(OBS_PREFIX) <= 200
         is_cam = isinstance(index, int) and not isinstance(index, bool) and 0 <= index <= MAX_CAMERA_INDEX
-        if not (is_obs or is_cam):
-            raise BadRequest(f"'index' must be a camera number from 0 to {MAX_CAMERA_INDEX} or \"obs:<source name>\"")
+        if not (is_obs or is_cam or index == TACOCAM):
+            raise BadRequest(f"'index' must be a camera number from 0 to {MAX_CAMERA_INDEX}, \"obs:<source name>\" "
+                             f"or \"{TACOCAM}\"")
         with self.lock:
             self.capture = None
             old, self.source = self.source, make_source(index, self.config["fps"])
@@ -865,7 +950,8 @@ class Scanner:
 
         def run():
             try:
-                found = probe_obs()  # quick, and keeps OBS in charge of the camera: list these first
+                taco = probe_tacocam()  # Taco Cam's full-quality feed first, when Taco Cam is running
+                found = ([taco] if taco else []) + probe_obs()  # then OBS sources: OBS stays in charge
                 with self.lock:
                     self.cameras = found
                 for i in range(MAX_CAMERA_INDEX):

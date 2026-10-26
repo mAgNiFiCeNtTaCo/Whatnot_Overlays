@@ -188,6 +188,12 @@ from your stream camera; later phases read the card name and suggest the rarity 
    them. This needs OBS's WebSocket server on (OBS > Tools > WebSocket Server Settings, on by
    default in OBS 28+); the scanner reads its password from OBS's settings on this PC. A camera that
    isn't in OBS can be picked by number instead.
+   **Best: Taco Cam (direct, full quality)**, listed first when the Taco Cam app (Webcam project) is
+   running: the iPhone's own picture straight from Taco Cam through shared memory, with no OBS screenshot
+   and no JPEG squeeze, and in 4K when the phone sends 4K (Taco Cam: Camera tab > Resolution 4K; OBS
+   still gets its normal 1080p). Taco Cam turns it upright with its Extras tab > "Clip / scanner turn".
+   Recognition was trained on Iriun/OBS pictures: after switching, run a session or two in **Test
+   mode** and answer the "Needs your answer" queue so it relearns Taco Cam's look.
 3. Pick the rarity of the card in your hand (keys **1**-**6**; **6** = *Not a hit*, for commons,
    rares and supers), optionally type its name, hold the
    card inside the white outline until the frame turns green, press **Capture** (**Space**) and
