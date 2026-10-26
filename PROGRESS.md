@@ -20,6 +20,20 @@ what's next.
 
 ## Log
 
+### 2026-10-25: Taco Cam camera for the scanner (from the Webcam session)
+- The stream camera is now **Taco Cam** (the Webcam project: own iPhone-as-webcam app), not Iriun. The OBS source
+  "Video Capture Device" shows Taco Cam.
+- New camera **"Taco Cam (direct, full quality)"** (`scanner/tacocam_feed.py`, `TacoCamSource` in `scanner/app.py`):
+  reads Taco Cam's shared-memory feed ("TacoCamFeed2": two slots, BGR already upright), no OBS screenshot, no JPEG;
+  listed first in Find cameras; `data/scanner.json` camera set to `tacocam`. ~25 pictures/s.
+- Pictures bigger than 1080p are shrunk to 1080p (`_fit_1080p`): card finding is tuned in pixels at 1080p
+  (DETECT_MAX effectively off) and cards are read at 420x612; at 4K it found 0/12 of the night's failed frames vs
+  4/12 at 1080p, 2.5x slower. The phone should stream 1080p.
+- Still hard: a very sparkly card in front of the busy background (display cases, top-loaders, packs) and cards on
+  the easel (ledge hides the bottom edge). 54 failed frames in `data/debug` to tune against if Test mode shows it.
+- Recognition was trained on Iriun/OBS pictures: the user will run Test mode sessions so it relearns Taco Cam's look.
+- **Card Scanner** desktop shortcut (to `scan.bat`) with `scanner/scanner.ico`. Tests: 120 passing.
+
 ### 2026-10-11: names on shiny cards, test mode, stream polish, brain
 - **Card names on rainbow foil:** Heavy Polymerization logged as "Polymerization" (HEAVY in blue-purple foil
   is as bright as the green bar, so brightness-based OCR lost it). Added a colour-contrast image version
